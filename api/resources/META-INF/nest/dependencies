@@ -1,0 +1,2 @@
+saker.clang-impl
+	classpath: [this]
