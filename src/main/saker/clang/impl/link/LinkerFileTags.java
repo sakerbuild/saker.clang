@@ -13,10 +13,11 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package saker.clang.impl.link.option;
+package saker.clang.impl.link;
 
-import saker.std.api.file.location.FileLocation;
+public enum LinkerFileTags {
+	INPUT_FILE,
+	OUTPUT_FILE,
 
-public interface FileLibraryPath {
-	public FileLocation getFileLocation();
+	;
 }

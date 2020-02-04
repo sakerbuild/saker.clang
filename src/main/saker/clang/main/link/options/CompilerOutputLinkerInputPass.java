@@ -13,27 +13,10 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package saker.clang.impl.compile.option;
+package saker.clang.main.link.options;
 
-import saker.sdk.support.api.SDKPathReference;
+import saker.clang.api.compile.ClangCompilerWorkerTaskOutput;
 
-public interface IncludePathOption {
-	public void accept(Visitor visitor);
-
-	@Override
-	public boolean equals(Object obj);
-
-	@Override
-	public int hashCode();
-
-	public interface Visitor {
-		public default void visit(FileIncludePath includepath) {
-			throw new UnsupportedOperationException("Unsupported include path: " + includepath);
-		}
-
-		public default void visit(SDKPathReference includepath) {
-			throw new UnsupportedOperationException("Unsupported include path: " + includepath);
-		}
-	}
-
+public interface CompilerOutputLinkerInputPass {
+	public ClangCompilerWorkerTaskOutput getCompilerOutput();
 }

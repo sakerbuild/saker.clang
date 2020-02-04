@@ -7,6 +7,7 @@ import java.io.ObjectOutput;
 
 import saker.build.runtime.environment.EnvironmentProperty;
 import saker.build.runtime.environment.SakerEnvironment;
+import testing.saker.clang.TestFlag;
 
 public class ClangVersionInformationEnvironmentProperty
 		implements EnvironmentProperty<ClangVersionInformation>, Externalizable {
@@ -26,8 +27,16 @@ public class ClangVersionInformationEnvironmentProperty
 
 	@Override
 	public ClangVersionInformation getCurrentValue(SakerEnvironment environment) throws Exception {
-		String executable = clangExe;
-		return ClangUtils.getClangVersionInformation(executable);
+		String exe = clangExe;
+		return getExecutableVersionInformation(exe);
+	}
+
+	public static ClangVersionInformation getExecutableVersionInformation(String exe)
+			throws IOException, InterruptedException {
+		if (TestFlag.ENABLED) {
+			return new ClangVersionInformation(TestFlag.metric().getClangVersionString(exe));
+		}
+		return ClangUtils.getClangVersionInformation(exe);
 	}
 
 	@Override

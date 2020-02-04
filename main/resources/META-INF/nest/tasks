@@ -1,1 +1,2 @@
 saker.clang.compile=saker.clang.main.compile.ClangCompileTaskFactory
+saker.clang.link=saker.clang.main.link.ClangLinkTaskFactory

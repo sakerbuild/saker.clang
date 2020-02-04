@@ -80,8 +80,8 @@ import saker.build.thirdparty.saker.util.io.SerialUtils;
 import saker.build.thirdparty.saker.util.io.UnsyncByteArrayOutputStream;
 import saker.clang.impl.compile.CompilerState.CompiledFileState;
 import saker.clang.impl.compile.CompilerState.PrecompiledHeaderState;
-import saker.clang.impl.compile.option.FileIncludePath;
-import saker.clang.impl.compile.option.IncludePathOption;
+import saker.clang.impl.option.CompilationPathOption;
+import saker.clang.impl.option.FileCompilationPathOption;
 import saker.clang.impl.util.ClangUtils;
 import saker.clang.impl.util.CollectingProcessIOConsumer;
 import saker.clang.impl.util.EnvironmentSelectionTestExecutionProperty;
@@ -96,14 +96,18 @@ import saker.sdk.support.api.exc.SDKManagementException;
 import saker.sdk.support.api.exc.SDKNotFoundException;
 import saker.sdk.support.api.exc.SDKPathNotFoundException;
 import saker.std.api.file.location.ExecutionFileLocation;
+import saker.std.api.file.location.FileLocation;
 import saker.std.api.file.location.FileLocationVisitor;
 import saker.std.api.file.location.LocalFileLocation;
+import testing.saker.clang.TestFlag;
 
 public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<Object>, Externalizable {
 	private static final long serialVersionUID = 1L;
 
 	private static final NavigableSet<String> WORKER_TASK_CAPABILITIES = ImmutableUtils
 			.makeImmutableNavigableSet(new String[] { CAPABILITY_INNER_TASKS_COMPUTATIONAL });
+
+	private static final String PRECOMPILED_HEADERS_SUBDIRECTORY_NAME = "pch";
 
 	private static final Pattern CLANG_OUTPUT_DIAGNOSTIC_PATTERN = Pattern
 			.compile("([^:]+)(:([0-9]+):([0-9]+): *([^:]+): *(.+))");
@@ -130,7 +134,9 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 	public void setSdkDescriptions(NavigableMap<String, SDKDescription> sdkdescriptions) {
 		ObjectUtils.requireComparator(sdkdescriptions, SDKSupportUtils.getSDKNameComparator());
 		this.sdkDescriptions = sdkdescriptions;
-		//TODO assert clang sdk?
+		if (sdkdescriptions.get(ClangUtils.SDK_NAME_CLANG) == null) {
+			throw new SDKNotFoundException(ClangUtils.SDK_NAME_CLANG + " SDK unspecified for compilation.");
+		}
 	}
 
 	@Override
@@ -252,8 +258,15 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 				}
 				FileCompilationConfiguration compilationentry = compilationresult.getCompilationEntry();
 				CompilationDependencyInfo depinfo = compilationresult.getDependencyInfo();
-				taskcontext.println(depinfo.getProcessOutput().toString());
-				compilationentry.getProperties().getFileLocation().accept(new FileLocationVisitor() {
+				ByteArrayRegion procout = depinfo.getProcessOutput();
+				FileLocation compiledfilelocation = compilationentry.getProperties().getFileLocation();
+				//TODO locked print
+				taskcontext.getStandardOut().write(ByteArrayRegion
+						.wrap((ClangUtils.getFileName(compiledfilelocation) + '\n').getBytes(StandardCharsets.UTF_8)));
+				if (!procout.isEmpty()) {
+					taskcontext.println(procout.toString());
+				}
+				compiledfilelocation.accept(new FileLocationVisitor() {
 					@Override
 					public void visit(ExecutionFileLocation loc) {
 						CompiledFileState compiledfilestate = new CompiledFileState(depinfo.getInputContents(),
@@ -284,6 +297,7 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 						FileLocationVisitor.super.visit(loc);
 					}
 				});
+
 			}
 		}
 
@@ -343,12 +357,12 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 		}
 		for (CompiledFileState filestate : stateexecutioncompiledfiles.values()) {
 			FileCompilationConfiguration compilationconfig = filestate.getCompilationConfiguration();
-			Collection<IncludePathOption> includedirs = compilationconfig.getProperties().getIncludeDirectories();
+			Collection<CompilationPathOption> includedirs = compilationconfig.getProperties().getIncludeDirectories();
 			if (!ObjectUtils.isNullOrEmpty(includedirs)) {
-				for (IncludePathOption includediroption : includedirs) {
-					includediroption.accept(new IncludePathOption.Visitor() {
+				for (CompilationPathOption includediroption : includedirs) {
+					includediroption.accept(new CompilationPathOption.Visitor() {
 						@Override
-						public void visit(FileIncludePath includedir) {
+						public void visit(FileCompilationPathOption includedir) {
 							includedir.getFileLocation().accept(new FileLocationVisitor() {
 								@Override
 								public void visit(ExecutionFileLocation loc) {
@@ -401,8 +415,8 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 			return null;
 		}
 
-		//TODO valid output
-		return null;
+		return new ClangCompilerWorkerTaskOutputImpl(passidentifier, nstate.getOutputObjectFilePaths(),
+				sdkDescriptions);
 	}
 
 	private static final class NothingKeepKnownDirectoryVisitPredicate implements DirectoryVisitPredicate {
@@ -423,7 +437,8 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 
 		@Override
 		public NavigableSet<String> getSynchronizeFilesToKeep() {
-			return Collections.emptyNavigableSet();
+			//don't remove the pch subdir
+			return ImmutableUtils.singletonNavigableSet(PRECOMPILED_HEADERS_SUBDIRECTORY_NAME);
 		}
 	}
 
@@ -561,6 +576,10 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 			return;
 		}
 		taskcontext.println(procout.toString());
+	}
+
+	protected static SakerPath getPrecompiledHeaderOutputDirectoryPath(SakerPath outputdirpath) {
+		return outputdirpath.resolve(PRECOMPILED_HEADERS_SUBDIRECTORY_NAME);
 	}
 
 	private static void collectFileDeltaPaths(Collection<? extends FileChangeDelta> deltas,
@@ -866,6 +885,26 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 			return TaskFactory.super.getExecutionEnvironmentSelector();
 		}
 
+		private static boolean isPrecompiledHeaderUpToDate(TaskContext taskcontext, PrecompiledHeaderState prevstate,
+				ContentDescriptor currentcontents, Path outputpath, FileCompilationProperties entrypch) {
+			if (prevstate == null) {
+				return false;
+			}
+			if (!prevstate.getInputContents().equals(currentcontents)) {
+				//the input header changed
+				return false;
+			}
+			//the output was changed
+			if (!prevstate.getOutputContents().equals(taskcontext.getExecutionContext()
+					.getContentDescriptor(LocalFileProvider.getInstance().getPathKey(outputpath)))) {
+				return false;
+			}
+			if (!entrypch.equals(prevstate.getCompilationProperties())) {
+				return false;
+			}
+			return true;
+		}
+
 		@Override
 		public CompilerInnerTaskResult run(TaskContext taskcontext) throws Exception {
 			FileCompilationConfiguration compilationentry = fileLocationSuppier.get();
@@ -898,8 +937,110 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 			LocalFileProvider localfp = LocalFileProvider.getInstance();
 			localfp.createDirectories(objoutpath.getParent());
 
-			//TODO refify executable cmd
-			String executable = "clang";
+			SDKReference clangsdk = getSDKReferenceForName(environment, ClangUtils.SDK_NAME_CLANG);
+			String executable = ClangUtils.getClangExecutable(clangsdk);
+
+			String pchoutfilename = compilationentry.getPrecompiledHeaderOutFileName();
+			Path pchoutpath = null;
+			String pchname = null;
+			PrecompiledHeaderDependencyInfo pchdepinfo = null;
+			if (pchoutfilename != null) {
+				FileCompilationProperties pchproperties = compilationentryproperties
+						.withFileLocation(compilationconfiguration.getPrecompiledHeaderFileLocation());
+				SakerPath pchoutdir = getPrecompiledHeaderOutputDirectoryPath(outputdirpath);
+				pchname = ClangUtils.getFileName(pchproperties.getFileLocation());
+				pchoutpath = executioncontext.toMirrorPath(pchoutdir.resolve(pchoutfilename + ".pch"));
+
+				localfp.createDirectories(pchoutpath.getParent());
+
+				FileCompilationConfiguration entrypch = new FileCompilationConfiguration(pchoutfilename, pchproperties);
+				Optional<PrecompiledHeaderDependencyInfo> headerres = precompiledHeaderCreationResults.get(entrypch);
+				if (headerres == null) {
+					synchronized (precompiledHeaderCreationLocks.computeIfAbsent(entrypch,
+							Functionals.objectComputer())) {
+						headerres = precompiledHeaderCreationResults.get(entrypch);
+						if (headerres == null) {
+							ContentDescriptor[] pchcontents = { null };
+							Path pchcompilefilepath = getCompileFilePath(pchproperties, environment, taskutilities,
+									pchcontents);
+
+							NavigableMap<SakerPath, PrecompiledHeaderState> precompiledheaderstates = precompiledHeaderStatesLazySupplier
+									.get();
+							SakerPath pchcompilesakerfilepath = SakerPath.valueOf(pchcompilefilepath);
+							PrecompiledHeaderState prevheaderstate = ObjectUtils.getMapValue(precompiledheaderstates,
+									pchcompilesakerfilepath);
+							if (isPrecompiledHeaderUpToDate(taskcontext, prevheaderstate, pchcontents[0],
+									pchcompilefilepath, pchproperties)) {
+								headerres = Optional
+										.of(new PrecompiledHeaderDependencyInfo(prevheaderstate.getIncludes()));
+							} else {
+								Path pchdepfileoutpath = executioncontext
+										.toMirrorPath(outputdirpath.resolve(outputdepfilename));
+								List<String> commands = new ArrayList<>();
+								commands.add(executable);
+								//compile only
+								commands.add("-c");
+								commands.addAll(pchproperties.getSimpleParameters());
+								addLanguageHeaderCommandLineOption(pchproperties.getLanguage(), commands);
+								commands.add(pchcompilefilepath.toString());
+								commands.add("-o");
+								commands.add(pchoutpath.toString());
+								addIncludeCommands(commands, includedirpaths);
+								addForceIncludeCommands(commands, forceincludepaths);
+								addMacroDefinitionCommands(commands, pchproperties.getMacroDefinitions());
+								// -MMD			Write a depfile containing user headers
+								// -MD			Write a depfile containing user and system headers
+								//use -MMD as we're not interested in system headers
+								commands.add("-MMD");
+								// -MF <file>	Write depfile output from -MMD, -MD, -MM, or -M to <file>
+								commands.add("-MF");
+								commands.add(pchdepfileoutpath.toString());
+
+								CollectingProcessIOConsumer stdoutcollector = new CollectingProcessIOConsumer();
+								SakerPath workingdir = null;
+								//TODO handle working dir
+								int procresult = ClangUtils.runClangProcess(commands, workingdir, stdoutcollector, null,
+										true);
+								CompilationDependencyInfo depinfo = new CompilationDependencyInfo(pchcontents[0]);
+								pchproperties.getFileLocation().accept(new FileLocationVisitor() {
+									//add the compiled header file as an include dependency, so it is added to the source files
+									@Override
+									public void visit(ExecutionFileLocation loc) {
+										depinfo.includes.add(loc.getPath());
+									}
+									//TODO support local
+								});
+								analyzeClangOutput(taskcontext, includedirpaths, stdoutcollector.getOutputBytes(),
+										depinfo, procresult, pchdepfileoutpath, pchoutpath, pchcompilefilepath);
+								CompilerInnerTaskResult headerprecompileresult;
+								if (procresult == 0) {
+									headerprecompileresult = CompilerInnerTaskResult.successful(entrypch);
+
+									headerres = Optional.of(new PrecompiledHeaderDependencyInfo(depinfo));
+								} else {
+									headerprecompileresult = CompilerInnerTaskResult.failed(entrypch);
+
+									headerres = Optional.empty();
+								}
+								headerprecompileresult.dependencyInfo = depinfo;
+								coordinator.headerPrecompiled(headerprecompileresult,
+										LocalFileProvider.getPathKeyStatic(pchcompilesakerfilepath),
+										taskcontext.getExecutionContext()
+												.getContentDescriptor(localfp.getPathKey(pchcompilesakerfilepath)));
+							}
+							precompiledHeaderCreationResults.put(entrypch, headerres);
+							//clear the force include paths as they are part of the precompiled header
+							//and they shouldn't be included in the source files
+							forceincludepaths = Collections.emptyList();
+						}
+					}
+				}
+				if (!headerres.isPresent()) {
+					//TODO reify exception
+					throw new IOException("Failed to compile required precompiled header. (" + pchname + ")");
+				}
+				pchdepinfo = headerres.get();
+			}
 
 			List<String> commands = new ArrayList<>();
 			commands.add(executable);
@@ -910,15 +1051,20 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 			commands.add(compilefilepath.toString());
 			commands.add("-o");
 			commands.add(objoutpath.toString());
-			addIncludeCommands(includedirpaths, commands);
+			addIncludeCommands(commands, includedirpaths);
 			addForceIncludeCommands(commands, forceincludepaths);
 			addMacroDefinitionCommands(commands, compilationentryproperties.getMacroDefinitions());
 			// -MMD			Write a depfile containing user headers
 			// -MD			Write a depfile containing user and system headers
+			//use -MMD as we're not interested in system headers
 			commands.add("-MMD");
 			// -MF <file>	Write depfile output from -MMD, -MD, -MM, or -M to <file>
 			commands.add("-MF");
 			commands.add(depfileoutpath.toString());
+			if (pchoutpath != null) {
+				commands.add("-include-pch");
+				commands.add(pchoutpath.toString());
+			}
 
 			CollectingProcessIOConsumer stdoutcollector = new CollectingProcessIOConsumer();
 			//TODO valid working directory
@@ -949,7 +1095,7 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 
 		private static void analyzeClangOutput(TaskContext taskcontext, List<Path> includedirpaths,
 				ByteArrayRegion stdoutputbytes, CompilationDependencyInfo depinfo, int procresult, Path depfileoutpath,
-				Path objoutpath, Path compilefilepath) throws IOException {
+				Path outputpath, Path compilefilepath) throws IOException {
 			NavigableSet<SakerPath> failedincludes = depinfo.failedIncludes;
 			ExecutionContext executioncontext = taskcontext.getExecutionContext();
 
@@ -1046,7 +1192,7 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 				try (Stream<String> depfilelinestream = Files.lines(depfileoutpath)) {
 					dependencypaths = getDependencyFileDependencies(depfilelinestream.iterator());
 				}
-				dependencypaths.remove(objoutpath);
+				dependencypaths.remove(outputpath);
 				dependencypaths.remove(compilefilepath);
 				NavigableSet<SakerPath> includes = depinfo.includes;
 				for (Path reallocalpath : dependencypaths) {
@@ -1111,10 +1257,27 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 						continue;
 					}
 					if (c == ':') {
-						//probably end of first line. ignore
-						//treat as end of a file path
-						result.add(Paths.get(sb.toString()));
-						sb.setLength(0);
+						if (i + 1 == linelen) {
+							//: at the end of line. finish the path and continue
+							if (sb.length() > 0) {
+								result.add(Paths.get(sb.toString()));
+								sb.setLength(0);
+							}
+							//break line char iteration
+							break;
+						}
+						if (l.charAt(i + 1) == ' ') {
+							//: in the line, and next is a space
+							//finish the path and continue
+							if (sb.length() > 0) {
+								result.add(Paths.get(sb.toString()));
+								sb.setLength(0);
+							}
+							++i;
+							continue;
+						}
+						//: in the line, and has a valid char next.
+						sb.append(c);
 						continue;
 					}
 					sb.append(c);
@@ -1141,7 +1304,7 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 			}
 		}
 
-		private static void addIncludeCommands(List<Path> includedirpaths, List<String> commands) {
+		private static void addIncludeCommands(List<String> commands, List<Path> includedirpaths) {
 			if (ObjectUtils.isNullOrEmpty(includedirpaths)) {
 				return;
 			}
@@ -1169,16 +1332,42 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 				return;
 			}
 			if ("objc++".equalsIgnoreCase(language)) {
-				commands.add("-ObjC++");
+				commands.add("-x");
+				commands.add("objective-c++");
 				return;
 			}
 			if ("objc".equalsIgnoreCase(language)) {
-				commands.add("-ObjC");
+				commands.add("-x");
+				commands.add("objective-c");
 				return;
 			}
 			if (language == null || "c".equalsIgnoreCase(language)) {
 				commands.add("-x");
 				commands.add("c");
+				return;
+			}
+			throw new IllegalArgumentException("Unknown language: " + language);
+		}
+
+		private static void addLanguageHeaderCommandLineOption(String language, List<String> commands) {
+			if ("c++".equalsIgnoreCase(language)) {
+				commands.add("-x");
+				commands.add("c++-header");
+				return;
+			}
+			if ("objc++".equalsIgnoreCase(language)) {
+				commands.add("-x");
+				commands.add("objective-c++-header");
+				return;
+			}
+			if ("objc".equalsIgnoreCase(language)) {
+				commands.add("-x");
+				commands.add("objective-c-header");
+				return;
+			}
+			if (language == null || "c".equalsIgnoreCase(language)) {
+				commands.add("-x");
+				commands.add("c-header");
 				return;
 			}
 			throw new IllegalArgumentException("Unknown language: " + language);
@@ -1191,10 +1380,9 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 				@Override
 				public void visit(ExecutionFileLocation loc) {
 					SakerPath path = loc.getPath();
-					//TODO test flag
-//					if (TestFlag.ENABLED) {
-//						TestFlag.metric().compiling(path, environment);
-//					}
+					if (TestFlag.ENABLED) {
+						TestFlag.metric().compiling(path, environment);
+					}
 					try {
 						MirroredFileContents mirrorres = mirrorHandler.mirrorFile(taskutilities, path);
 						compilefilepath[0] = mirrorres.getPath();
@@ -1214,13 +1402,13 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 		}
 
 		private List<Path> getIncludePaths(TaskExecutionUtilities taskutilities, SakerEnvironment environment,
-				Collection<IncludePathOption> includeoptions, boolean directories) {
+				Collection<CompilationPathOption> includeoptions, boolean directories) {
 			if (ObjectUtils.isNullOrEmpty(includeoptions)) {
 				return Collections.emptyList();
 			}
 			List<Path> includepaths = new ArrayList<>();
 			if (!ObjectUtils.isNullOrEmpty(includeoptions)) {
-				for (IncludePathOption incopt : includeoptions) {
+				for (CompilationPathOption incopt : includeoptions) {
 					Path incpath = getIncludePath(taskutilities, environment, incopt, directories);
 					includepaths.add(incpath);
 				}
@@ -1229,11 +1417,11 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 		}
 
 		private Path getIncludePath(TaskExecutionUtilities taskutilities, SakerEnvironment environment,
-				IncludePathOption includediroption, boolean directories) {
+				CompilationPathOption includediroption, boolean directories) {
 			Path[] includepath = { null };
-			includediroption.accept(new IncludePathOption.Visitor() {
+			includediroption.accept(new CompilationPathOption.Visitor() {
 				@Override
-				public void visit(FileIncludePath includedir) {
+				public void visit(FileCompilationPathOption includedir) {
 					includedir.getFileLocation().accept(new FileLocationVisitor() {
 						@Override
 						public void visit(ExecutionFileLocation loc) {

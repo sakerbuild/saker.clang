@@ -13,10 +13,22 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package saker.clang.impl.compile.option;
+package testing.saker.clang;
 
-import saker.std.api.file.location.FileLocation;
+public class TestFlag {
+	private static final ClangTestMetric NULL_METRIC_INSTANCE = new ClangTestMetric() {
+	};
+	public static final boolean ENABLED = true;
 
-public interface FileIncludePath {
-	public FileLocation getFileLocation();
+	public static ClangTestMetric metric() {
+		Object res = testing.saker.build.flag.TestFlag.metric();
+		if (res instanceof ClangTestMetric) {
+			return (ClangTestMetric) res;
+		}
+		return NULL_METRIC_INSTANCE;
+	}
+
+	private TestFlag() {
+		throw new UnsupportedOperationException();
+	}
 }

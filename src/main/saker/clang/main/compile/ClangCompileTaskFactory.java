@@ -195,6 +195,8 @@ public class ClangCompileTaskFactory extends FrontendTaskFactory<Object> {
 					identifier = CompilationIdentifier.valueOf("default");
 				}
 
+				sdkdescriptions.putIfAbsent(ClangUtils.SDK_NAME_CLANG, ClangUtils.DEFAULT_CLANG_SDK);
+
 				ClangCompileWorkerTaskIdentifier workertaskid = new ClangCompileWorkerTaskIdentifier(identifier);
 
 				ClangCompileWorkerTaskFactory workertask = new ClangCompileWorkerTaskFactory();

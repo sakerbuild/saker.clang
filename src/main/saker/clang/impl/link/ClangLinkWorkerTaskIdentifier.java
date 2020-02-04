@@ -13,61 +13,52 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package saker.clang.impl.util.option;
+package saker.clang.impl.link;
 
 import java.io.Externalizable;
 import java.io.IOException;
 import java.io.ObjectInput;
 import java.io.ObjectOutput;
+import java.util.Objects;
 
-import saker.clang.impl.compile.option.IncludePathOption;
-import saker.clang.impl.link.option.LibraryPathOption;
-import saker.sdk.support.api.SDKPathReference;
+import saker.build.task.identifier.TaskIdentifier;
+import saker.compiler.utils.api.CompilationIdentifier;
 
-public class CommonSDKPathReferenceOption implements IncludePathOption, LibraryPathOption, Externalizable {
+public class ClangLinkWorkerTaskIdentifier implements TaskIdentifier, Externalizable {
 	private static final long serialVersionUID = 1L;
 
-	private SDKPathReference pathReference;
+	private CompilationIdentifier passIdentifier;
 
 	/**
 	 * For {@link Externalizable}.
 	 */
-	public CommonSDKPathReferenceOption() {
+	public ClangLinkWorkerTaskIdentifier() {
 	}
 
-	public CommonSDKPathReferenceOption(SDKPathReference pathReference) {
-		this.pathReference = pathReference;
+	public ClangLinkWorkerTaskIdentifier(CompilationIdentifier passIdentifier) {
+		Objects.requireNonNull(passIdentifier, "pass identifier");
+		this.passIdentifier = passIdentifier;
 	}
 
-	public CommonSDKPathReferenceOption(String sdkname, String pathidentifier) {
-		this.pathReference = SDKPathReference.create(sdkname, pathidentifier);
-	}
-
-	@Override
-	public void accept(LibraryPathOption.Visitor visitor) {
-		visitor.visit(pathReference);
-	}
-
-	@Override
-	public void accept(IncludePathOption.Visitor visitor) {
-		visitor.visit(pathReference);
+	public CompilationIdentifier getPassIdentifier() {
+		return passIdentifier;
 	}
 
 	@Override
 	public void writeExternal(ObjectOutput out) throws IOException {
-		out.writeObject(pathReference);
+		out.writeObject(passIdentifier);
 	}
 
 	@Override
 	public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
-		pathReference = (SDKPathReference) in.readObject();
+		passIdentifier = (CompilationIdentifier) in.readObject();
 	}
 
 	@Override
 	public int hashCode() {
 		final int prime = 31;
 		int result = 1;
-		result = prime * result + ((pathReference == null) ? 0 : pathReference.hashCode());
+		result = prime * result + ((passIdentifier == null) ? 0 : passIdentifier.hashCode());
 		return result;
 	}
 
@@ -79,18 +70,18 @@ public class CommonSDKPathReferenceOption implements IncludePathOption, LibraryP
 			return false;
 		if (getClass() != obj.getClass())
 			return false;
-		CommonSDKPathReferenceOption other = (CommonSDKPathReferenceOption) obj;
-		if (pathReference == null) {
-			if (other.pathReference != null)
+		ClangLinkWorkerTaskIdentifier other = (ClangLinkWorkerTaskIdentifier) obj;
+		if (passIdentifier == null) {
+			if (other.passIdentifier != null)
 				return false;
-		} else if (!pathReference.equals(other.pathReference))
+		} else if (!passIdentifier.equals(other.passIdentifier))
 			return false;
 		return true;
 	}
 
 	@Override
 	public String toString() {
-		return getClass().getSimpleName() + "[" + pathReference + "]";
+		return getClass().getSimpleName() + "[" + passIdentifier + "]";
 	}
 
 }

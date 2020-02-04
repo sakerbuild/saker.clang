@@ -13,28 +13,19 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package saker.clang.impl.link.option;
+package saker.clang.main.link.options;
 
-import saker.sdk.support.api.SDKPathReference;
-
-public interface LibraryPathOption {
+public interface LinkerInputPassOption {
 	public void accept(Visitor visitor);
 
-	@Override
-	public boolean equals(Object obj);
-
-	@Override
-	public int hashCode();
-
 	public interface Visitor {
-		public default void visit(FileLibraryPath libpath) {
-			throw new UnsupportedOperationException("Unsupported library path: " + libpath);
+		public default void visit(FileLinkerInputPass input) {
+			throw new UnsupportedOperationException("Unsupported input: " + input);
 		}
 
-		public default void visit(SDKPathReference libpath) {
-			throw new UnsupportedOperationException("Unsupported library path: " + libpath);
+		public default void visit(CompilerOutputLinkerInputPass input) {
+			throw new UnsupportedOperationException("Unsupported input: " + input);
 		}
-
 	}
 
 }

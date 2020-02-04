@@ -6,45 +6,43 @@ import java.io.ObjectInput;
 import java.io.ObjectOutput;
 
 import saker.build.file.path.SakerPath;
+import saker.clang.impl.util.ClangUtils;
 import saker.clang.impl.util.ClangVersionInformation;
 import saker.sdk.support.api.SDKReference;
 
-public class ClangSDKReference implements SDKReference, Externalizable {
+public class VersionInfoClangSDKReference implements SDKReference, Externalizable {
 	private static final long serialVersionUID = 1L;
-
-	public static final String CLANG_EXECUTABLE = "exe";
 
 	public static final String PROPERTY_VERSION = "version";
 	public static final String PROPERTY_TARGET = "target";
 	public static final String PROPERTY_THREAD_MODEL = "thread_model";
 
-	private String version;
-
-	private transient String threadModel;
-	private transient String defaultTarget;
+	private ClangVersionInformation versionInfo;
 	private transient String exe;
 
 	/**
 	 * For {@link Externalizable}.
 	 */
-	public ClangSDKReference() {
+	public VersionInfoClangSDKReference() {
 	}
 
-	public ClangSDKReference(String exe, ClangVersionInformation versioninfo) {
+	public VersionInfoClangSDKReference(String exe, ClangVersionInformation versioninfo) {
 		this.exe = exe;
-		this.version = versioninfo.getVersion();
-		this.defaultTarget = versioninfo.getTarget();
-		this.threadModel = versioninfo.getThreadModel();
+		this.versionInfo = versioninfo;
 	}
 
-	public String getVersion() {
-		return version;
+	public ClangVersionInformation getVersionInfo() {
+		return versionInfo;
+	}
+
+	public String getExecutable() {
+		return exe;
 	}
 
 	@Override
 	public SakerPath getPath(String identifier) throws Exception {
 		switch (identifier) {
-			case CLANG_EXECUTABLE: {
+			case ClangUtils.SDK_PATH_CLANG_EXECUTABLE: {
 				return SakerPath.valueOf(exe);
 			}
 			default: {
@@ -57,17 +55,17 @@ public class ClangSDKReference implements SDKReference, Externalizable {
 	@Override
 	public String getProperty(String identifier) throws Exception {
 		switch (identifier) {
-			case CLANG_EXECUTABLE: {
+			case ClangUtils.SDK_PATH_CLANG_EXECUTABLE: {
 				return exe;
 			}
 			case PROPERTY_VERSION: {
-				return version;
+				return versionInfo.getVersion();
 			}
 			case PROPERTY_TARGET: {
-				return defaultTarget;
+				return versionInfo.getTarget();
 			}
 			case PROPERTY_THREAD_MODEL: {
-				return threadModel;
+				return versionInfo.getThreadModel();
 			}
 			default: {
 				break;
@@ -78,18 +76,14 @@ public class ClangSDKReference implements SDKReference, Externalizable {
 
 	@Override
 	public void writeExternal(ObjectOutput out) throws IOException {
-		out.writeObject(version);
-		out.writeObject(defaultTarget);
-		out.writeObject(threadModel);
+		out.writeObject(versionInfo);
 
 		out.writeObject(exe);
 	}
 
 	@Override
 	public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
-		version = (String) in.readObject();
-		defaultTarget = (String) in.readObject();
-		threadModel = (String) in.readObject();
+		versionInfo = (ClangVersionInformation) in.readObject();
 
 		exe = (String) in.readObject();
 	}
@@ -98,7 +92,7 @@ public class ClangSDKReference implements SDKReference, Externalizable {
 	public int hashCode() {
 		final int prime = 31;
 		int result = 1;
-		result = prime * result + ((version == null) ? 0 : version.hashCode());
+		result = prime * result + ((versionInfo == null) ? 0 : versionInfo.hashCode());
 		return result;
 	}
 
@@ -110,17 +104,17 @@ public class ClangSDKReference implements SDKReference, Externalizable {
 			return false;
 		if (getClass() != obj.getClass())
 			return false;
-		ClangSDKReference other = (ClangSDKReference) obj;
-		if (version == null) {
-			if (other.version != null)
+		VersionInfoClangSDKReference other = (VersionInfoClangSDKReference) obj;
+		if (versionInfo == null) {
+			if (other.versionInfo != null)
 				return false;
-		} else if (!version.equals(other.version))
+		} else if (!versionInfo.equals(other.versionInfo))
 			return false;
 		return true;
 	}
 
 	@Override
 	public String toString() {
-		return "ClangSDKReference[" + (version != null ? "version=" + version : "") + "]";
+		return "ClangSDKReference[" + exe + " : " + versionInfo + "]";
 	}
 }

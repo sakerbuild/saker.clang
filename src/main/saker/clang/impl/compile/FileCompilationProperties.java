@@ -13,7 +13,7 @@ import java.util.NavigableSet;
 import saker.build.thirdparty.saker.util.ImmutableUtils;
 import saker.build.thirdparty.saker.util.ObjectUtils;
 import saker.build.thirdparty.saker.util.io.SerialUtils;
-import saker.clang.impl.compile.option.IncludePathOption;
+import saker.clang.impl.option.CompilationPathOption;
 import saker.std.api.file.location.FileLocation;
 
 public final class FileCompilationProperties implements Externalizable {
@@ -22,8 +22,8 @@ public final class FileCompilationProperties implements Externalizable {
 	protected FileLocation fileLocation;
 	protected String language;
 	//store include directories as a list, as their order matters
-	protected List<IncludePathOption> includeDirectories;
-	protected List<IncludePathOption> forceInclude;
+	protected List<CompilationPathOption> includeDirectories;
+	protected List<CompilationPathOption> forceInclude;
 	protected Map<String, String> macroDefinitions;
 	protected NavigableSet<String> simpleParameters = Collections.emptyNavigableSet();
 
@@ -56,7 +56,7 @@ public final class FileCompilationProperties implements Externalizable {
 		this.simpleParameters = config.simpleParameters;
 	}
 
-	public void setIncludeDirectories(Collection<? extends IncludePathOption> includeDirectories) {
+	public void setIncludeDirectories(Collection<? extends CompilationPathOption> includeDirectories) {
 		if (ObjectUtils.isNullOrEmpty(includeDirectories)) {
 			this.includeDirectories = null;
 		} else {
@@ -65,7 +65,7 @@ public final class FileCompilationProperties implements Externalizable {
 		}
 	}
 
-	public void setForceInclude(Collection<? extends IncludePathOption> includeDirectories) {
+	public void setForceInclude(Collection<? extends CompilationPathOption> includeDirectories) {
 		if (ObjectUtils.isNullOrEmpty(includeDirectories)) {
 			this.forceInclude = null;
 		} else {
@@ -94,7 +94,7 @@ public final class FileCompilationProperties implements Externalizable {
 		return language;
 	}
 
-	public Collection<IncludePathOption> getIncludeDirectories() {
+	public Collection<CompilationPathOption> getIncludeDirectories() {
 		return includeDirectories;
 	}
 
@@ -106,7 +106,7 @@ public final class FileCompilationProperties implements Externalizable {
 		return simpleParameters;
 	}
 
-	public List<IncludePathOption> getForceInclude() {
+	public List<CompilationPathOption> getForceInclude() {
 		return forceInclude;
 	}
 

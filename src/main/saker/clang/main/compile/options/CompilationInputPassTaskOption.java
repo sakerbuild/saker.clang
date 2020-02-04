@@ -25,6 +25,38 @@ public interface CompilationInputPassTaskOption {
 		return null;
 	}
 
+//	public default Collection<IncludePathTaskOption> getIncludeDirectories() {
+//		return null;
+//	}
+//
+//	public default Collection<MSVCCompilerOptions> getCompilerOptions() {
+//		return null;
+//	}
+//
+//	public default CompilationIdentifierTaskOption getSubIdentifier() {
+//		return null;
+//	}
+//
+//	public default Map<String, String> getMacroDefinitions() {
+//		return null;
+//	}
+//
+//	public default Collection<String> getSimpleParameters() {
+//		return null;
+//	}
+//
+//	public default String getLanguage() {
+//		return null;
+//	}
+//
+//	public default FileLocationTaskOption getPrecompiledHeader() {
+//		return null;
+//	}
+//
+//	public default Collection<IncludePathTaskOption> getForceInclude() {
+//		return null;
+//	}
+
 	public static CompilationInputPassTaskOption valueOf(FileLocation filelocation) {
 		FileLocationTaskOption.validateFileLocation(filelocation);
 		return new FileCompilationInputFileOption(Collections.singleton(filelocation));
