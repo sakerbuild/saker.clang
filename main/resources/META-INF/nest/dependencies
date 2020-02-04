@@ -1,2 +1,8 @@
 saker.clang-api
 	classpath: [0)
+saker.standard
+	classpath: 0.8
+saker.sdk.support
+	classpath: 0.8
+saker.compiler.utils
+	classpath: 0.8

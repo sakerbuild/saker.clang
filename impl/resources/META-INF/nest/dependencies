@@ -1,2 +1,6 @@
 saker.clang-api
 	classpath: [this]
+saker.standard-api
+	classpath: [0)
+saker.process-api
+	classpath: [0)
