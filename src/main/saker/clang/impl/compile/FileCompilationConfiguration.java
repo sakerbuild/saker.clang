@@ -29,7 +29,6 @@ public class FileCompilationConfiguration implements Externalizable {
 	private FileCompilationProperties properties;
 	private FileLocation precompiledHeaderFileLocation;
 	private String precompiledHeaderOutFileName;
-	private boolean precompiledHeaderForceInclude;
 
 	/**
 	 * For {@link Externalizable}.
@@ -66,21 +65,12 @@ public class FileCompilationConfiguration implements Externalizable {
 		this.precompiledHeaderOutFileName = precompiledHeaderOutFileName;
 	}
 
-	public boolean isPrecompiledHeaderForceInclude() {
-		return precompiledHeaderForceInclude;
-	}
-
-	public void setPrecompiledHeaderForceInclude(boolean precompiledHeaderForceInclude) {
-		this.precompiledHeaderForceInclude = precompiledHeaderForceInclude;
-	}
-
 	@Override
 	public void writeExternal(ObjectOutput out) throws IOException {
 		out.writeObject(outFileName);
 		out.writeObject(properties);
 		out.writeObject(precompiledHeaderFileLocation);
 		out.writeObject(precompiledHeaderOutFileName);
-		out.writeBoolean(precompiledHeaderForceInclude);
 	}
 
 	@Override
@@ -89,7 +79,6 @@ public class FileCompilationConfiguration implements Externalizable {
 		properties = (FileCompilationProperties) in.readObject();
 		precompiledHeaderFileLocation = (FileLocation) in.readObject();
 		precompiledHeaderOutFileName = (String) in.readObject();
-		precompiledHeaderForceInclude = in.readBoolean();
 	}
 
 	@Override
@@ -119,8 +108,6 @@ public class FileCompilationConfiguration implements Externalizable {
 			if (other.precompiledHeaderFileLocation != null)
 				return false;
 		} else if (!precompiledHeaderFileLocation.equals(other.precompiledHeaderFileLocation))
-			return false;
-		if (precompiledHeaderForceInclude != other.precompiledHeaderForceInclude)
 			return false;
 		if (precompiledHeaderOutFileName == null) {
 			if (other.precompiledHeaderOutFileName != null)

@@ -2,6 +2,7 @@ package testing.saker.clang.tests;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map.Entry;
 
@@ -160,17 +161,27 @@ public abstract class ClangTestCase extends RepositoryLoadingVariablesMetricEnvi
 
 	protected void assertHeaderPrecompilationWasntRun() {
 		for (Entry<List<String>, Long> entry : getMetric().getProcessInvocationFrequencies().entrySet()) {
-			if (entry.getKey().contains("/Yc")) {
-				throw new AssertionError("Header was precompiled: " + entry.getKey());
+			Iterator<String> it = entry.getKey().iterator();
+			while (it.hasNext()) {
+				if (it.next().equals("-x")) {
+					if (it.next().endsWith("-header")) {
+						throw new AssertionError("Header was precompiled: " + entry.getKey());
+					}
+				}
 			}
 		}
 	}
 
 	protected void assertHeaderPrecompilationRunOnlyOnce() {
 		for (Entry<List<String>, Long> entry : getMetric().getProcessInvocationFrequencies().entrySet()) {
-			if (entry.getKey().contains("/Yc")) {
-				if (entry.getValue() > 1) {
-					fail("Precompiled more than once: " + entry.getKey());
+			Iterator<String> it = entry.getKey().iterator();
+			while (it.hasNext()) {
+				if (it.next().equals("-x")) {
+					if (it.next().endsWith("-header")) {
+						if (entry.getValue() > 1) {
+							fail("Precompiled more than once: " + entry.getKey());
+						}
+					}
 				}
 			}
 		}

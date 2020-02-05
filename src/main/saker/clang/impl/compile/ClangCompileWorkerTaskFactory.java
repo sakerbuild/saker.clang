@@ -192,6 +192,10 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 		List<FileCompilationConfiguration> compilationentries = new ArrayList<>(this.files);
 
 		if (prevoutput != null) {
+			for (Entry<RootFileProviderKey, NavigableMap<SakerPath, PrecompiledHeaderState>> entry : prevoutput
+					.getPrecompiledHeaders().entrySet()) {
+				nprecompiledheaders.put(entry.getKey(), new ConcurrentSkipListMap<>(entry.getValue()));
+			}
 			filterUnchangedPreviousFiles(taskcontext, compilationentries, stateexecutioncompiledfiles, prevoutput,
 					nstate);
 		}
@@ -214,7 +218,7 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 						//write file name to signal progress, like MSVc
 						//TODO locked print
 						stdout.write(ByteArrayRegion
-								.wrap(outputpathkey.getPath().getFileName().getBytes(StandardCharsets.UTF_8)));
+								.wrap((outputpathkey.getPath().getFileName() + "\n").getBytes(StandardCharsets.UTF_8)));
 						stdout.write(depinfo.getProcessOutput());
 					} catch (IOException e) {
 						taskcontext.getTaskUtilities().reportIgnoredException(e);
@@ -928,7 +932,6 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 					compilationentryproperties.getIncludeDirectories(), true);
 			List<Path> forceincludepaths = getIncludePaths(taskutilities, environment,
 					compilationentryproperties.getForceInclude(), false);
-			boolean forceincludepch = compilationentry.isPrecompiledHeaderForceInclude();
 
 			FileCompilationConfiguration compilationconfiguration = compilationentry;
 			String outputfilenamebase = compilationconfiguration.getOutFileName();
@@ -1016,7 +1019,7 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 									//TODO support local
 								});
 								analyzeClangOutput(taskcontext, includedirpaths, stdoutcollector.getOutputBytes(),
-										depinfo, procresult, pchdepfileoutpath, pchoutpath, pchcompilefilepath);
+										depinfo, procresult, pchdepfileoutpath, pchoutpath, pchcompilefilepath, null);
 								CompilerInnerTaskResult headerprecompileresult;
 								if (procresult == 0) {
 									headerprecompileresult = CompilerInnerTaskResult.successful(entrypch);
@@ -1080,7 +1083,12 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 			ByteArrayRegion stdoutputbytes = stdoutcollector.getOutputBytes();
 
 			analyzeClangOutput(taskcontext, includedirpaths, stdoutputbytes, depinfo, procresult, depfileoutpath,
-					objoutpath, compilefilepath);
+					objoutpath, compilefilepath, pchoutpath);
+
+			if (pchdepinfo != null) {
+				//no need to add failed includes, as if the pch compilation fails, the source file doesn't get compiled
+				depinfo.includes.addAll(pchdepinfo.includes);
+			}
 
 			CompilerInnerTaskResult result;
 			if (procresult != 0) {
@@ -1119,7 +1127,7 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 
 		private static void analyzeClangOutput(TaskContext taskcontext, List<Path> includedirpaths,
 				ByteArrayRegion stdoutputbytes, CompilationDependencyInfo depinfo, int procresult, Path depfileoutpath,
-				Path outputpath, Path compilefilepath) throws IOException {
+				Path outputpath, Path compilefilepath, Path pchpath) throws IOException {
 			NavigableSet<SakerPath> failedincludes = depinfo.failedIncludes;
 			NavigableSet<SakerPath> includes = depinfo.includes;
 			ExecutionContext executioncontext = taskcontext.getExecutionContext();
@@ -1254,6 +1262,9 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 					}
 					dependencypaths.remove(outputpath);
 					dependencypaths.remove(compilefilepath);
+					if (pchpath != null) {
+						dependencypaths.remove(pchpath);
+					}
 					for (Path reallocalpath : dependencypaths) {
 						try {
 							SakerPath unmirrored = executioncontext.toUnmirrorPath(reallocalpath);

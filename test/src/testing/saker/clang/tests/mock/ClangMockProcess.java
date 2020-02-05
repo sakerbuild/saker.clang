@@ -4,7 +4,9 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -15,12 +17,12 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.TreeSet;
 
+import saker.build.exception.InvalidPathFormatException;
 import saker.build.file.path.SakerPath;
 import saker.build.file.provider.LocalFileProvider;
 import saker.build.file.provider.SakerPathFiles;
 import saker.build.thirdparty.saker.util.ArrayUtils;
 import saker.build.thirdparty.saker.util.io.UnsyncByteArrayOutputStream;
-import sun.security.util.ArrayUtil;
 import testing.saker.clang.ClangTestMetric.MetricProcessIOConsumer;
 
 public class ClangMockProcess {
@@ -71,6 +73,10 @@ public class ClangMockProcess {
 			}
 			SakerPath depfile = SakerPath.valueOf(requireCommandArgument(commands, "-MF"));
 			String language = requireCommandArgument(commands, "-x").toLowerCase(Locale.ENGLISH);
+			StringBuilder pch = null;
+			if (language.endsWith("-header")) {
+				pch = new StringBuilder();
+			}
 
 			UnsyncByteArrayOutputStream depfilebaos = new UnsyncByteArrayOutputStream();
 			UnsyncByteArrayOutputStream fileoutbuf = new UnsyncByteArrayOutputStream();
@@ -84,7 +90,30 @@ public class ClangMockProcess {
 				List<SakerPath> includedirs = getIncludeDirectoriesFromCommands(commands);
 				LinkedList<SourceLine> pendinglines = new LinkedList<>();
 				Set<SakerPath> includedpaths = new TreeSet<>();
-				Set<SakerPath> referencedlibs = new TreeSet<>();
+
+				for (Iterator<String> it = commands.iterator(); it.hasNext();) {
+					String cmd = it.next();
+					if (cmd.equals("-include") || cmd.equals("-include-pch")) {
+						String fipath = it.next();
+						SourceLine incsrcline = new SourceLine(SakerPath.valueOf("<built-in>"),
+								"#include \"" + fipath + "\"");
+						try {
+							SakerPath incpath = SakerPath.valueOf(fipath);
+
+							//TODO this is incorrect, as the transitive includes need to be processed before the next force include is added
+							List<SourceLine> lines = getIncludeLines(incsrcline, incpath);
+							includedpaths.add(incpath);
+							pendinglines.addAll(lines);
+						} catch (InvalidPathException | InvalidPathFormatException | IOException e) {
+							printIncludeNotFound(incsrcline, fipath, stdout);
+							return -2;
+						}
+						continue;
+					}
+					if (cmd.equals("-include-pch")) {
+
+					}
+				}
 
 				try (BufferedReader reader = Files.newBufferedReader(LocalFileProvider.toRealPath(inputpath));
 						PrintStream outps = new PrintStream(fileoutbuf)) {
@@ -115,6 +144,11 @@ public class ClangMockProcess {
 							}
 							continue;
 						}
+						if (pch != null) {
+							pch.append(line);
+							pch.append('\n');
+						}
+
 						int lineval;
 						try {
 							lineval = Integer.parseInt(line);
@@ -149,13 +183,17 @@ public class ClangMockProcess {
 			}
 
 			try {
-				Files.write(LocalFileProvider.toRealPath(outputpath), fileoutbuf.toByteArray());
+				byte[] outputcontents = pch == null ? fileoutbuf.toByteArray()
+						: pch.toString().getBytes(StandardCharsets.UTF_8);
+				Files.write(LocalFileProvider.toRealPath(outputpath), outputcontents);
 			} catch (IOException e) {
 				e.printStackTrace();
 				return -99;
 			}
 
-			Files.write(LocalFileProvider.toRealPath(depfile), depfilebaos.toByteArray());
+			if (depfile != null) {
+				Files.write(LocalFileProvider.toRealPath(depfile), depfilebaos.toByteArray());
+			}
 
 			return 0;
 		}
@@ -214,17 +252,19 @@ public class ClangMockProcess {
 				continue;
 			}
 		}
-		//some arbitrary error data
-		//XXX track if needed
-		for (SakerPath ip : includeline.includeStack) {
-			stdout.println("In file included from " + ip + ":1:");
-		}
-		stdout.println(includeline.sourcePath + ":1:10: fatal error: '" + includepath + "' file not found");
+		printIncludeNotFound(includeline, includepath.toString(), stdout);
 		IllegalArgumentException exc = new IllegalArgumentException("Included file not found: " + includepath);
 		for (Exception e : causes) {
 			exc.addSuppressed(e);
 		}
 		throw exc;
+	}
+
+	private static void printIncludeNotFound(SourceLine includeline, String includepath, PrintStream stdout) {
+		for (SakerPath ip : includeline.includeStack) {
+			stdout.println("In file included from " + ip + ":1:");
+		}
+		stdout.println(includeline.sourcePath + ":1:10: fatal error: '" + includepath + "' file not found");
 	}
 
 	private static void includeResolvedIncludePath(SourceLine includeline, LinkedList<SourceLine> pendinglines,
@@ -410,10 +450,10 @@ public class ClangMockProcess {
 	}
 
 	public static int getLanguageMockMultipler(String language) {
-		if ("c".equalsIgnoreCase(language)) {
+		if ("c".equalsIgnoreCase(language) || "c-header".equalsIgnoreCase(language)) {
 			return MockingClangTestMetric.MOCK_MULTIPLIER_LANGUAGE_C;
 		}
-		if ("c++".equalsIgnoreCase(language)) {
+		if ("c++".equalsIgnoreCase(language) || "c++-header".equalsIgnoreCase(language)) {
 			return MockingClangTestMetric.MOCK_MULTIPLIER_LANGUAGE_CPP;
 		}
 		throw new IllegalArgumentException("Unknown language: " + language);
