@@ -2,6 +2,7 @@ package saker.clang.main.compile;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -19,6 +20,7 @@ import saker.build.task.TaskContext;
 import saker.build.task.utils.SimpleStructuredObjectTaskResult;
 import saker.build.task.utils.annot.SakerInput;
 import saker.build.task.utils.dependencies.EqualityTaskOutputChangeDetector;
+import saker.build.thirdparty.saker.util.ImmutableUtils;
 import saker.build.thirdparty.saker.util.ObjectUtils;
 import saker.build.thirdparty.saker.util.StringUtils;
 import saker.build.thirdparty.saker.util.io.FileUtils;
@@ -26,11 +28,13 @@ import saker.clang.impl.compile.ClangCompileWorkerTaskFactory;
 import saker.clang.impl.compile.ClangCompileWorkerTaskIdentifier;
 import saker.clang.impl.compile.FileCompilationConfiguration;
 import saker.clang.impl.compile.FileCompilationProperties;
+import saker.clang.impl.option.CompilationPathOption;
 import saker.clang.impl.util.ClangUtils;
 import saker.clang.main.compile.options.CompilationInputPassOption;
 import saker.clang.main.compile.options.CompilationInputPassTaskOption;
 import saker.clang.main.compile.options.FileCompilationInputPass;
 import saker.clang.main.compile.options.OptionCompilationInputPass;
+import saker.clang.main.options.CompilationPathTaskOption;
 import saker.compiler.utils.api.CompilationIdentifier;
 import saker.compiler.utils.main.CompilationIdentifierTaskOption;
 import saker.nest.utils.FrontendTaskFactory;
@@ -70,6 +74,9 @@ public class ClangCompileTaskFactory extends FrontendTaskFactory<Object> {
 
 				CompilationIdentifier optionidentifier = this.identifierOption == null ? null
 						: this.identifierOption.clone().getIdentifier();
+
+				Map<CompilationPathTaskOption, Collection<CompilationPathOption>> calculatedincludediroptions = new HashMap<>();
+				Map<FileCompilationProperties, String> precompiledheaderoutnamesconfigurations = new HashMap<>();
 
 				//ignore-case comparison of possible output names of the files
 				//  as windows has case-insensitive file names, we need to support Main.cpp and main.cpp from different directories
@@ -134,19 +141,40 @@ public class ClangCompileTaskFactory extends FrontendTaskFactory<Object> {
 									if (ObjectUtils.isNullOrEmpty(files)) {
 										return;
 									}
+
+									Map<String, String> macrodefinitions = input.getMacroDefinitions();
+									Set<String> simpleparamoption = ImmutableUtils
+											.makeImmutableNavigableSet(input.getSimpleParameters());
+									String passlang = input.getLanguage();
+									FileLocation pchfilelocation = TaskOptionUtils
+											.toFileLocation(input.getPrecompiledHeader(), taskcontext);
+
+									Set<CompilationPathOption> inputincludedirs = toIncludePathOptions(taskcontext,
+											calculatedincludediroptions, input.getIncludeDirectories());
+									Set<CompilationPathOption> inputforceincludes = toIncludePathOptions(taskcontext,
+											calculatedincludediroptions, input.getForceInclude());
+
+									CompilationIdentifierTaskOption passsubidopt = input.getSubIdentifier();
+
 									for (MultiFileLocationTaskOption filesopt : files) {
 										Collection<FileLocation> filelocations = TaskOptionUtils
 												.toFileLocations(filesopt, taskcontext, null);
 										if (ObjectUtils.isNullOrEmpty(filelocations)) {
 											continue;
 										}
+										CompilationIdentifier passsubid = CompilationIdentifierTaskOption
+												.getIdentifier(passsubidopt);
 										for (FileLocation filelocation : filelocations) {
 											FileCompilationProperties nproperties = new FileCompilationProperties(
 													filelocation);
-											//TODO handle options, language, others
+											nproperties.setSimpleParameters(simpleparamoption);
+											nproperties.setIncludeDirectories(inputincludedirs);
+											nproperties.setMacroDefinitions(macrodefinitions);
+											nproperties.setForceInclude(inputforceincludes);
+
 											FileCompilationConfiguration nconfig = createConfigurationForProperties(
-													nproperties);
-											configbuf.add(new ConfigSetupHolder(nconfig, null));
+													nproperties, passsubid, passlang);
+											configbuf.add(new ConfigSetupHolder(nconfig, pchfilelocation));
 										}
 									}
 								}
@@ -174,9 +202,25 @@ public class ClangCompileTaskFactory extends FrontendTaskFactory<Object> {
 									return createConfigurationForProperties(properties, null, null);
 								}
 							});
+
+					//TODO handle sub options
+
 					for (ConfigSetupHolder configholder : configbuf) {
-						//TODO handle precompiled headers
-						//TODO handle sub options
+						if (configholder.precompiledHeader != null) {
+							FileCompilationProperties pchprops = new FileCompilationProperties(
+									configholder.precompiledHeader);
+							pchprops.copyFrom(configholder.config.getProperties());
+
+							String pchoutfilename = precompiledheaderoutnamesconfigurations.get(pchprops);
+							if (pchoutfilename == null) {
+								String pchfilename = ClangUtils.getFileName(configholder.precompiledHeader);
+
+								pchoutfilename = getOutFileName(pchfilename, outnames, null);
+								precompiledheaderoutnamesconfigurations.put(pchprops, pchoutfilename);
+							}
+							configholder.config.setPrecompiledHeader(configholder.precompiledHeader, pchoutfilename);
+
+						}
 						files.add(configholder.config);
 					}
 				}
@@ -210,6 +254,27 @@ public class ClangCompileTaskFactory extends FrontendTaskFactory<Object> {
 				return result;
 			}
 		};
+	}
+
+	private static Set<CompilationPathOption> toIncludePathOptions(TaskContext taskcontext,
+			Map<CompilationPathTaskOption, Collection<CompilationPathOption>> calculatedincludediroptions,
+			Collection<CompilationPathTaskOption> indirtaskopts) {
+		Set<CompilationPathOption> inputincludedirs = new LinkedHashSet<>();
+		collectIncludeDirectoryOptions(taskcontext, calculatedincludediroptions, indirtaskopts, inputincludedirs);
+		return inputincludedirs;
+	}
+
+	private static void collectIncludeDirectoryOptions(TaskContext taskcontext,
+			Map<CompilationPathTaskOption, Collection<CompilationPathOption>> calculatedincludediroptions,
+			Collection<CompilationPathTaskOption> indirtaskopts, Set<CompilationPathOption> inputincludedirs) {
+		if (ObjectUtils.isNullOrEmpty(indirtaskopts)) {
+			return;
+		}
+		for (CompilationPathTaskOption indirtaskopt : indirtaskopts) {
+			Collection<CompilationPathOption> indiroptions = calculatedincludediroptions.computeIfAbsent(indirtaskopt,
+					o -> o.toCompilationPaths(taskcontext));
+			ObjectUtils.addAll(inputincludedirs, indiroptions);
+		}
 	}
 
 	private static String getOutFileName(String fname, Set<String> presentfiles, CompilationIdentifier passsubid) {

@@ -1,0 +1,3 @@
+build {
+	$compile = saker.clang.compile([*.c, *.cpp])
+}

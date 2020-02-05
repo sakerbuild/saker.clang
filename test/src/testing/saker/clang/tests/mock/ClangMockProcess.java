@@ -18,7 +18,9 @@ import java.util.TreeSet;
 import saker.build.file.path.SakerPath;
 import saker.build.file.provider.LocalFileProvider;
 import saker.build.file.provider.SakerPathFiles;
+import saker.build.thirdparty.saker.util.ArrayUtils;
 import saker.build.thirdparty.saker.util.io.UnsyncByteArrayOutputStream;
+import sun.security.util.ArrayUtil;
 import testing.saker.clang.ClangTestMetric.MetricProcessIOConsumer;
 
 public class ClangMockProcess {
@@ -43,13 +45,13 @@ public class ClangMockProcess {
 
 					String target = defaulttarget;
 					resultCode = executeCompilation(inputfiles, outputpath, stdout, stderr, commands, target, version);
-
-				}
-				if (stdoutconsumer != null) {
-					stdoutconsumer.handleOutput(ByteBuffer.wrap(stdoutbaos.getBuffer(), 0, stdoutbaos.size()));
-				}
-				if (!mergestderr && stderrconsumer != null) {
-					stderrconsumer.handleOutput(ByteBuffer.wrap(stderrbaos.getBuffer(), 0, stderrbaos.size()));
+				} finally {
+					if (stdoutconsumer != null) {
+						stdoutconsumer.handleOutput(ByteBuffer.wrap(stdoutbaos.getBuffer(), 0, stdoutbaos.size()));
+					}
+					if (!mergestderr && stderrconsumer != null) {
+						stderrconsumer.handleOutput(ByteBuffer.wrap(stderrbaos.getBuffer(), 0, stderrbaos.size()));
+					}
 				}
 				return resultCode;
 			}
@@ -94,7 +96,24 @@ public class ClangMockProcess {
 							continue;
 						}
 						if (line.startsWith("#include ")) {
-							throw new UnsupportedOperationException("#include");
+							String includephrase = line.substring(9).trim();
+							if (includephrase.isEmpty()) {
+								return -2;
+							}
+							SakerPath includepath = SakerPath
+									.valueOf(includephrase.substring(1, includephrase.length() - 1));
+							if (includephrase.charAt(0) == '<'
+									&& includephrase.charAt(includephrase.length() - 1) == '>') {
+								includeBracketIncludePath(srcline, includedirs, pendinglines, includedpaths,
+										includepath, stdout, stderr, commands);
+							} else if (includephrase.charAt(0) == '\"'
+									&& includephrase.charAt(includephrase.length() - 1) == '\"') {
+								throw new UnsupportedOperationException(
+										"Quoted inclusion shouldn't be used as it is prone to mirroring errors.");
+							} else {
+								return -3;
+							}
+							continue;
 						}
 						int lineval;
 						try {
@@ -175,6 +194,55 @@ public class ClangMockProcess {
 			return -99;
 		}
 		return 0;
+	}
+
+	private static void includeBracketIncludePath(SourceLine includeline, List<SakerPath> includedirs,
+			LinkedList<SourceLine> pendinglines, Set<SakerPath> includedpaths, SakerPath includepath,
+			PrintStream stdout, PrintStream stderr, List<String> commands) {
+		List<Exception> causes = new ArrayList<>();
+		for (SakerPath includedir : includedirs) {
+			SakerPath resolvedincludepath = includedir.resolve(includepath);
+			if (includedpaths.contains(resolvedincludepath)) {
+				return;
+			}
+			try {
+				includeResolvedIncludePath(includeline, pendinglines, resolvedincludepath, stdout, stderr,
+						includedpaths, commands);
+				return;
+			} catch (IOException e) {
+				causes.add(e);
+				continue;
+			}
+		}
+		//some arbitrary error data
+		//XXX track if needed
+		for (SakerPath ip : includeline.includeStack) {
+			stdout.println("In file included from " + ip + ":1:");
+		}
+		stdout.println(includeline.sourcePath + ":1:10: fatal error: '" + includepath + "' file not found");
+		IllegalArgumentException exc = new IllegalArgumentException("Included file not found: " + includepath);
+		for (Exception e : causes) {
+			exc.addSuppressed(e);
+		}
+		throw exc;
+	}
+
+	private static void includeResolvedIncludePath(SourceLine includeline, LinkedList<SourceLine> pendinglines,
+			SakerPath includepath, PrintStream stdout, PrintStream stderr, Set<SakerPath> includedpaths,
+			List<String> commands) throws IOException {
+		List<SourceLine> lines = getIncludeLines(includeline, includepath);
+		includedpaths.add(includepath);
+		pendinglines.addAll(0, lines);
+	}
+
+	private static List<SourceLine> getIncludeLines(SourceLine includeline, SakerPath includepath) throws IOException {
+		List<String> alllines = Files.readAllLines(LocalFileProvider.toRealPath(includepath));
+		List<SourceLine> lines = new ArrayList<>();
+		SakerPath[] nincludestack = ArrayUtils.appended(includeline.includeStack, includeline.sourcePath);
+		for (String l : alllines) {
+			lines.add(new SourceLine(nincludestack, includepath, l));
+		}
+		return lines;
 	}
 
 	private static void handleLinkFileLines(String target, List<SakerPath> libpathdirs, Set<SakerPath> includedlibs,
@@ -275,11 +343,15 @@ public class ClangMockProcess {
 			String cmd = it.next();
 			if ("-D".equals(cmd)) {
 				String arg = it.next();
-				if (!arg.startsWith("=")) {
-					throw new IllegalArgumentException("Command: " + cmd);
+				int idx = arg.indexOf('=');
+				if (idx < 0) {
+					if (word.equals(arg)) {
+						return "";
+					}
+					continue;
 				}
-				if (arg.startsWith(word + "=")) {
-					return arg.substring(word.length() + 1);
+				if (arg.substring(0, idx).equals(word)) {
+					return arg.substring(idx + 1);
 				}
 			}
 		}
@@ -348,10 +420,18 @@ public class ClangMockProcess {
 	}
 
 	private static class SourceLine {
+		public static final SakerPath[] EMPTY_SAKERPATH_ARRAY = {};
+		public SakerPath[] includeStack = EMPTY_SAKERPATH_ARRAY;
 		public SakerPath sourcePath;
 		public String line;
 
 		public SourceLine(SakerPath sourcePath, String line) {
+			this.sourcePath = sourcePath;
+			this.line = line;
+		}
+
+		public SourceLine(SakerPath[] includePath, SakerPath sourcePath, String line) {
+			this.includeStack = includePath;
 			this.sourcePath = sourcePath;
 			this.line = line;
 		}

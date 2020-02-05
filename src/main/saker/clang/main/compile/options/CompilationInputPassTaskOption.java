@@ -2,12 +2,15 @@ package saker.clang.main.compile.options;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Map;
 
 import saker.build.file.path.SakerPath;
 import saker.build.file.path.WildcardPath;
 import saker.build.file.path.WildcardPath.ReducedWildcardPath;
 import saker.build.task.TaskContext;
 import saker.build.thirdparty.saker.util.ImmutableUtils;
+import saker.clang.main.options.CompilationPathTaskOption;
+import saker.compiler.utils.main.CompilationIdentifierTaskOption;
 import saker.std.api.file.location.ExecutionFileLocation;
 import saker.std.api.file.location.FileCollection;
 import saker.std.api.file.location.FileLocation;
@@ -25,37 +28,37 @@ public interface CompilationInputPassTaskOption {
 		return null;
 	}
 
-//	public default Collection<IncludePathTaskOption> getIncludeDirectories() {
-//		return null;
-//	}
-//
+	public default Collection<CompilationPathTaskOption> getIncludeDirectories() {
+		return null;
+	}
+
 //	public default Collection<MSVCCompilerOptions> getCompilerOptions() {
 //		return null;
 //	}
-//
-//	public default CompilationIdentifierTaskOption getSubIdentifier() {
-//		return null;
-//	}
-//
-//	public default Map<String, String> getMacroDefinitions() {
-//		return null;
-//	}
-//
-//	public default Collection<String> getSimpleParameters() {
-//		return null;
-//	}
-//
-//	public default String getLanguage() {
-//		return null;
-//	}
-//
-//	public default FileLocationTaskOption getPrecompiledHeader() {
-//		return null;
-//	}
-//
-//	public default Collection<IncludePathTaskOption> getForceInclude() {
-//		return null;
-//	}
+
+	public default CompilationIdentifierTaskOption getSubIdentifier() {
+		return null;
+	}
+
+	public default Map<String, String> getMacroDefinitions() {
+		return null;
+	}
+
+	public default Collection<String> getSimpleParameters() {
+		return null;
+	}
+
+	public default String getLanguage() {
+		return null;
+	}
+
+	public default FileLocationTaskOption getPrecompiledHeader() {
+		return null;
+	}
+
+	public default Collection<CompilationPathTaskOption> getForceInclude() {
+		return null;
+	}
 
 	public static CompilationInputPassTaskOption valueOf(FileLocation filelocation) {
 		FileLocationTaskOption.validateFileLocation(filelocation);

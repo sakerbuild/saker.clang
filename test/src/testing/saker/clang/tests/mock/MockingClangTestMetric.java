@@ -17,6 +17,7 @@ import testing.saker.build.tests.EnvironmentTestCase;
 import testing.saker.clang.ClangTestMetric;
 
 public class MockingClangTestMetric extends CollectingTestMetric implements ClangTestMetric {
+	private static final SakerPath DEFAULT_CLANG_EXECUTABLE_PATH = SakerPath.valueOf("clang");
 	public static final String DEFAULT_VERSION = "6.0.0-1ubuntu2";
 	public static final String DEFAULT_TARGET = "x86_64-pc-linux-gnu";
 	public static final String DEFAULT_THREADMODEL = "posix";
@@ -38,12 +39,21 @@ public class MockingClangTestMetric extends CollectingTestMetric implements Clan
 		runCommands.computeIfAbsent(command, x -> new LongAdder()).increment();
 		System.out.println("MockingMSVCTestMetric.startProcess() " + command);
 		SakerPath exepath = SakerPath.valueOf(command.get(0));
-		if (exepath.getFileName().equalsIgnoreCase("clang")) {
-			//TODO better handle target
-			return ClangMockProcess.run(command, mergestderr, stdoutconsumer, stderrconsumer, DEFAULT_TARGET,
-					DEFAULT_VERSION, DEFAULT_THREADMODEL);
+		String defaulttarget;
+		String compilerversion;
+		String defaultthreadmodel;
+		if (DEFAULT_CLANG_EXECUTABLE_PATH.equals(exepath)) {
+			defaulttarget = DEFAULT_TARGET;
+			compilerversion = DEFAULT_VERSION;
+			defaultthreadmodel = DEFAULT_THREADMODEL;
+		} else {
+			//TODO handle clang attributes
+			throw new UnsupportedOperationException();
 		}
-		throw new IOException("Exe not found: " + command);
+		if (exepath.getFileName().equalsIgnoreCase("clang")) {
+		}
+		return ClangMockProcess.run(command, mergestderr, stdoutconsumer, stderrconsumer, defaulttarget,
+				compilerversion, defaultthreadmodel);
 	}
 
 	@Override

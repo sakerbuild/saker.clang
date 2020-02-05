@@ -1,0 +1,8 @@
+build {
+	$compile = saker.clang.compile({
+		Files: [*.c, *.cpp],
+		MacroDefinitions: {
+			MY_MACRO: test.macro.val(),
+		},
+	})
+}

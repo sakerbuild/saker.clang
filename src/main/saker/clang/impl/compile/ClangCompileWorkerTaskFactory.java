@@ -110,7 +110,7 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 	private static final String PRECOMPILED_HEADERS_SUBDIRECTORY_NAME = "pch";
 
 	private static final Pattern CLANG_OUTPUT_DIAGNOSTIC_PATTERN = Pattern
-			.compile("([^:]+)(:([0-9]+):([0-9]+): *([^:]+): *(.+))");
+			.compile("((?:[a-zA-Z]:)?[^:]+)(:([0-9]+):([0-9]+): *([^:]+): *(.+))");
 	private static final int CLANG_OUTPUT_DIAGNOSTIC_GROUP_FILE = 1;
 	private static final int CLANG_OUTPUT_DIAGNOSTIC_GROUP_FILE_REMAINING = 2;
 	private static final int CLANG_OUTPUT_DIAGNOSTIC_GROUP_LINE = 3;
@@ -328,6 +328,11 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 				SakerLog.error().verbose().println("Header referencing concurrency error. Referenced header: "
 						+ includepath
 						+ " had transient presence for compiled sources. It is recommended to clean the project.");
+				if (TestFlag.ENABLED) {
+					//this shouldn't happen during testing, so better throw an exception
+					throw new AssertionError(
+							"header concurrency error: " + includecontentdescriptors + " with " + prev);
+				}
 			}
 		}
 
@@ -1093,12 +1098,33 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 			return result;
 		}
 
+		private static int getPathEndIndexFromInFileIncludedFromLine(String line) {
+			//get the path from a line that starts with "In file included from ".
+			// e.g. In file included from main.cpp:1:
+			int colonidx = line.indexOf(':', 22);
+			if (colonidx < 0) {
+				return -1;
+			}
+			if (colonidx == 23) {
+				//possibly 
+				//In file included from c:/windows/path.cpp:1:
+				int ncolonidx = line.indexOf(':', 24);
+				if (ncolonidx < 0) {
+					return colonidx;
+				}
+				colonidx = ncolonidx;
+			}
+			return colonidx;
+		}
+
 		private static void analyzeClangOutput(TaskContext taskcontext, List<Path> includedirpaths,
 				ByteArrayRegion stdoutputbytes, CompilationDependencyInfo depinfo, int procresult, Path depfileoutpath,
 				Path outputpath, Path compilefilepath) throws IOException {
 			NavigableSet<SakerPath> failedincludes = depinfo.failedIncludes;
+			NavigableSet<SakerPath> includes = depinfo.includes;
 			ExecutionContext executioncontext = taskcontext.getExecutionContext();
 
+			boolean includeerror = false;
 			if (stdoutputbytes.isEmpty()) {
 				if (procresult != 0) {
 					depinfo.processOutput = ByteArrayRegion.wrap(("error: clang exited with error code: " + procresult
@@ -1122,6 +1148,31 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 							} else {
 								errmatcher.reset(line);
 							}
+							if (line.startsWith("In file included from ")) {
+								int pathendidx = getPathEndIndexFromInFileIncludedFromLine(line);
+								if (pathendidx > 22) {
+									SakerPath wd = taskcontext.getTaskWorkingDirectoryPath();
+									String file = line.substring(22, pathendidx);
+									try {
+										Path diagpath = Paths.get(file);
+										SakerPath execpath = executioncontext.toUnmirrorPath(diagpath);
+										if (!compilefilepath.equals(diagpath)) {
+											includes.add(execpath);
+										}
+										if (execpath.startsWith(wd)) {
+											file = wd.relativize(execpath).toString();
+										} else {
+											file = execpath.toString();
+										}
+									} catch (Exception e) {
+										SakerLog.error().verbose()
+												.println("Failed to parse clang path: " + e + " for " + file);
+									}
+									diagbaos.write(("In file included from " + file + line.substring(pathendidx) + "\n")
+											.getBytes(StandardCharsets.UTF_8));
+									continue;
+								}
+							}
 							if (errmatcher.matches()) {
 								String file = errmatcher.group(CLANG_OUTPUT_DIAGNOSTIC_GROUP_FILE);
 								String msg = errmatcher.group(CLANG_OUTPUT_DIAGNOSTIC_GROUP_MESSAGE);
@@ -1136,16 +1187,21 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 									}
 								} catch (Exception e) {
 									SakerLog.error().verbose()
-											.println("Failed to parse CL output path: " + e + " for " + file);
+											.println("Failed to parse clang path: " + e + " for " + file);
 								}
 
 								//check not found header files
 								//in format
 								//     main.cpp:5:10: fatal error: 'second/nonexist.h' file not found
-								//     main.cpp:5:10: fatal error: 'second/nonexist.h' file not found [category, id, others...]								
+								//     main.cpp:5:10: fatal error: 'second/nonexist.h' file not found [category, id, others...]
+								//these errors may be prefixed by one or multiple lines of the following:
+								//     In file included from main.cpp:1:
+								//     In file included from ./first.h:1:
+								//     ./second.h:1:10: fatal error: 'third.h' file not found
 								if (!msg.isEmpty() && msg.charAt(0) == '\'') {
 									int nfidx = msg.indexOf("' file not found");
 									if (nfidx > 0) {
+										includeerror = true;
 										String notfoundfilepathstr = msg.substring(1, nfidx);
 										Path notfoundpath = Paths.get(notfoundfilepathstr);
 										if (notfoundpath.isAbsolute()) {
@@ -1187,33 +1243,36 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 					depinfo.processOutput = diagbaos.toByteArrayRegion();
 				}
 			}
-			try {
-				List<Path> dependencypaths;
-				try (Stream<String> depfilelinestream = Files.lines(depfileoutpath)) {
-					dependencypaths = getDependencyFileDependencies(depfilelinestream.iterator());
-				}
-				dependencypaths.remove(outputpath);
-				dependencypaths.remove(compilefilepath);
-				NavigableSet<SakerPath> includes = depinfo.includes;
-				for (Path reallocalpath : dependencypaths) {
-					try {
-						SakerPath unmirrored = executioncontext.toUnmirrorPath(reallocalpath);
-						if (unmirrored != null) {
-							includes.add(unmirrored);
-						} else {
-							//TODO handle non mirrored included path
-						}
-					} catch (InvalidPathException e) {
-						SakerLog.error().verbose().println(
-								"Failed to determine included file path for: " + reallocalpath + " (" + e + ")");
-						continue;
+			if (!includeerror) {
+				//if there was an include error, clang doesn't create a dependency file
+				// in that case don't attempt to read and parse it, as it may be a leftover from previous compilation
+				// and could contain incorrect dependency information
+				try {
+					List<Path> dependencypaths;
+					try (Stream<String> depfilelinestream = Files.lines(depfileoutpath)) {
+						dependencypaths = getDependencyFileDependencies(depfilelinestream.iterator());
 					}
+					dependencypaths.remove(outputpath);
+					dependencypaths.remove(compilefilepath);
+					for (Path reallocalpath : dependencypaths) {
+						try {
+							SakerPath unmirrored = executioncontext.toUnmirrorPath(reallocalpath);
+							if (unmirrored != null) {
+								includes.add(unmirrored);
+							} else {
+								//TODO handle non mirrored included path
+							}
+						} catch (InvalidPathException e) {
+							SakerLog.error().verbose().println(
+									"Failed to determine included file path for: " + reallocalpath + " (" + e + ")");
+							continue;
+						}
+					}
+				} catch (IOException e) {
+					//the dependency file may not exist if the preprocessing failed
+					//we can ignore this exception
 				}
-			} catch (IOException e) {
-				//the dependency file may not exist if the preprocessing failed
-				//we can ignore this exception
 			}
-
 		}
 
 		private static List<Path> getDependencyFileDependencies(Iterator<String> lineit) {
