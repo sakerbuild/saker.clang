@@ -1,4 +1,4 @@
-package testing.saker.clang.tests;
+package testing.saker.clang.tests.compile;
 
 import java.nio.file.Path;
 import java.util.ArrayList;

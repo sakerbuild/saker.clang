@@ -21,6 +21,7 @@ public class OptionCompilationInputPassOption
 	private String language;
 	private FileLocationTaskOption precompiledHeader;
 	private Collection<CompilationPathTaskOption> forceInclude;
+	private Collection<ClangCompilerOptions> compilerOptions;
 
 	public OptionCompilationInputPassOption(CompilationInputPassTaskOption copy) {
 		this.files = ObjectUtils.cloneArrayList(copy.getFiles(), MultiFileLocationTaskOption::clone);
@@ -29,6 +30,7 @@ public class OptionCompilationInputPassOption
 		this.subIdentifier = ObjectUtils.clone(copy.getSubIdentifier(), CompilationIdentifierTaskOption::clone);
 		this.macroDefinitions = ImmutableUtils.makeImmutableNavigableMap(copy.getMacroDefinitions());
 		this.simpleParameters = ImmutableUtils.makeImmutableList(copy.getSimpleParameters());
+		this.compilerOptions = ObjectUtils.cloneArrayList(copy.getCompilerOptions(), ClangCompilerOptions::clone);
 		this.language = copy.getLanguage();
 		this.precompiledHeader = ObjectUtils.clone(copy.getPrecompiledHeader(), FileLocationTaskOption::clone);
 		this.forceInclude = ObjectUtils.cloneArrayList(copy.getForceInclude(), CompilationPathTaskOption::clone);
@@ -57,6 +59,11 @@ public class OptionCompilationInputPassOption
 	@Override
 	public Collection<CompilationPathTaskOption> getIncludeDirectories() {
 		return includeDirectories;
+	}
+
+	@Override
+	public Collection<ClangCompilerOptions> getCompilerOptions() {
+		return compilerOptions;
 	}
 
 	@Override

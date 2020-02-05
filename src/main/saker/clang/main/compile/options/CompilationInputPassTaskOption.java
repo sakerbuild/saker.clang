@@ -32,9 +32,9 @@ public interface CompilationInputPassTaskOption {
 		return null;
 	}
 
-//	public default Collection<MSVCCompilerOptions> getCompilerOptions() {
-//		return null;
-//	}
+	public default Collection<ClangCompilerOptions> getCompilerOptions() {
+		return null;
+	}
 
 	public default CompilationIdentifierTaskOption getSubIdentifier() {
 		return null;

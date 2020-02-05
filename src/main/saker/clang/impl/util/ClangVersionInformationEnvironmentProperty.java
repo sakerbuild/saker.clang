@@ -27,16 +27,10 @@ public class ClangVersionInformationEnvironmentProperty
 
 	@Override
 	public ClangVersionInformation getCurrentValue(SakerEnvironment environment) throws Exception {
-		String exe = clangExe;
-		return getExecutableVersionInformation(exe);
-	}
-
-	public static ClangVersionInformation getExecutableVersionInformation(String exe)
-			throws IOException, InterruptedException {
 		if (TestFlag.ENABLED) {
-			return new ClangVersionInformation(TestFlag.metric().getClangVersionString(exe));
+			return new ClangVersionInformation(TestFlag.metric().getClangVersionString(clangExe, environment));
 		}
-		return ClangUtils.getClangVersionInformation(exe);
+		return ClangUtils.getClangVersionInformation(clangExe);
 	}
 
 	@Override

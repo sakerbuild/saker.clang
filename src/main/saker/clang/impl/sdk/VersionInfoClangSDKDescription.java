@@ -4,8 +4,12 @@ import java.io.Externalizable;
 import java.io.IOException;
 import java.io.ObjectInput;
 import java.io.ObjectOutput;
+import java.util.regex.Pattern;
 
 import saker.build.runtime.environment.SakerEnvironment;
+import saker.build.thirdparty.saker.util.ArrayUtils;
+import saker.build.thirdparty.saker.util.ObjectUtils;
+import saker.clang.impl.util.ClangUtils;
 import saker.clang.impl.util.ClangVersionInformation;
 import saker.clang.impl.util.ClangVersionInformationEnvironmentProperty;
 import saker.sdk.support.api.EnvironmentSDKDescription;
@@ -16,6 +20,8 @@ import testing.saker.clang.TestFlag;
 
 public class VersionInfoClangSDKDescription implements EnvironmentSDKDescription, Externalizable {
 	private static final long serialVersionUID = 1L;
+
+	private static final Pattern PATTERN_SEMICOLON_SPLIT = Pattern.compile(";+");
 
 	public static final SDKDescription INSTANCE_ANY_VERSION = new VersionInfoClangSDKDescription(null);
 
@@ -33,23 +39,36 @@ public class VersionInfoClangSDKDescription implements EnvironmentSDKDescription
 
 	@Override
 	public SDKReference getSDK(SakerEnvironment environment) throws Exception {
-		String exe = "clang";
-		ClangVersionInformation versioninfo;
-		if (TestFlag.ENABLED) {
-			versioninfo = new ClangVersionInformation(TestFlag.metric().getClangVersionString(exe));
-		} else {
-			versioninfo = environment
-					.getEnvironmentPropertyCurrentValue(new ClangVersionInformationEnvironmentProperty(exe));
-		}
-		if (versioninfo != null) {
-			//if expected version info is null, allow any 
-			if (expectVersionInfo != null && !versioninfo.equals(expectVersionInfo)) {
-				throw new SDKNotFoundException(
-						"Clang version information mismatch: " + versioninfo + " with expected: " + expectVersionInfo);
+		Throwable[] causes = ObjectUtils.EMPTY_THROWABLE_ARRAY;
+		for (String exe : PATTERN_SEMICOLON_SPLIT.split(environment.getUserParameters()
+				.getOrDefault(ClangUtils.ENVIRONMENT_PARAMETER_CLANG_EXECUTABLES, "clang"))) {
+			if (exe.isEmpty()) {
+				continue;
 			}
-			return new VersionInfoClangSDKReference(exe, versioninfo);
+			try {
+				ClangVersionInformation versioninfo;
+				if (TestFlag.ENABLED) {
+					versioninfo = new ClangVersionInformation(
+							TestFlag.metric().getClangVersionString(exe, environment));
+				} else {
+					versioninfo = environment
+							.getEnvironmentPropertyCurrentValue(new ClangVersionInformationEnvironmentProperty(exe));
+				}
+				//if expected version info is null, allow any 
+				if (expectVersionInfo != null && !versioninfo.equals(expectVersionInfo)) {
+					throw new SDKNotFoundException("Clang version information mismatch: " + versioninfo
+							+ " with expected: " + expectVersionInfo);
+				}
+				return new VersionInfoClangSDKReference(exe, versioninfo);
+			} catch (Exception e) {
+				causes = ArrayUtils.appended(causes, e);
+			}
 		}
-		throw new SDKNotFoundException("Clang not found.");
+		SDKNotFoundException e = new SDKNotFoundException("Clang not found.");
+		for (Throwable c : causes) {
+			e.addSuppressed(c);
+		}
+		throw e;
 	}
 
 	@Override

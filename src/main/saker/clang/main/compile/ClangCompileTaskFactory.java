@@ -3,6 +3,7 @@ package saker.clang.main.compile;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -30,12 +31,14 @@ import saker.clang.impl.compile.FileCompilationConfiguration;
 import saker.clang.impl.compile.FileCompilationProperties;
 import saker.clang.impl.option.CompilationPathOption;
 import saker.clang.impl.util.ClangUtils;
+import saker.clang.main.compile.options.ClangCompilerOptions;
 import saker.clang.main.compile.options.CompilationInputPassOption;
 import saker.clang.main.compile.options.CompilationInputPassTaskOption;
 import saker.clang.main.compile.options.FileCompilationInputPass;
 import saker.clang.main.compile.options.OptionCompilationInputPass;
 import saker.clang.main.options.CompilationPathTaskOption;
 import saker.compiler.utils.api.CompilationIdentifier;
+import saker.compiler.utils.api.CompilerUtils;
 import saker.compiler.utils.main.CompilationIdentifierTaskOption;
 import saker.nest.utils.FrontendTaskFactory;
 import saker.sdk.support.api.SDKDescription;
@@ -64,9 +67,13 @@ public class ClangCompileTaskFactory extends FrontendTaskFactory<Object> {
 			@SakerInput(value = { "SDKs" })
 			public Map<String, SDKDescriptionTaskOption> sdksOption;
 
+			@SakerInput(value = { "CompilerOptions" })
+			public Collection<ClangCompilerOptions> compilerOptionsOption;
+
 			@Override
 			public Object run(TaskContext taskcontext) throws Exception {
 				List<CompilationInputPassTaskOption> inputpasses = new ArrayList<>();
+				Collection<ClangCompilerOptions> compileroptions = new ArrayList<>();
 				Map<String, SDKDescriptionTaskOption> sdkoptions = new TreeMap<>(
 						SDKSupportUtils.getSDKNameComparator());
 				NavigableMap<String, SDKDescription> sdkdescriptions = new TreeMap<>(
@@ -118,8 +125,18 @@ public class ClangCompileTaskFactory extends FrontendTaskFactory<Object> {
 					CompilationInputPassTaskOption inputpass = inputopt.clone();
 					inputpasses.add(inputpass);
 				}
+				if (!ObjectUtils.isNullOrEmpty(this.compilerOptionsOption)) {
+					for (ClangCompilerOptions options : this.compilerOptionsOption) {
+						if (options == null) {
+							continue;
+						}
+						compileroptions.add(options.clone());
+					}
+				}
 				List<ConfigSetupHolder> configbuf = new ArrayList<>();
 				for (CompilationInputPassTaskOption inputpass : inputpasses) {
+					CompilationIdentifier[] subid = { null };
+					OptionCompilationInputPass[] suboptioninputpass = { null };
 					inputpass.toCompilationInputPassOption(taskcontext)
 							.accept(new CompilationInputPassOption.Visitor() {
 								@Override
@@ -155,6 +172,10 @@ public class ClangCompileTaskFactory extends FrontendTaskFactory<Object> {
 											calculatedincludediroptions, input.getForceInclude());
 
 									CompilationIdentifierTaskOption passsubidopt = input.getSubIdentifier();
+									CompilationIdentifier passsubid = CompilationIdentifierTaskOption
+											.getIdentifier(passsubidopt);
+									subid[0] = passsubid;
+									suboptioninputpass[0] = input;
 
 									for (MultiFileLocationTaskOption filesopt : files) {
 										Collection<FileLocation> filelocations = TaskOptionUtils
@@ -162,8 +183,6 @@ public class ClangCompileTaskFactory extends FrontendTaskFactory<Object> {
 										if (ObjectUtils.isNullOrEmpty(filelocations)) {
 											continue;
 										}
-										CompilationIdentifier passsubid = CompilationIdentifierTaskOption
-												.getIdentifier(passsubidopt);
 										for (FileLocation filelocation : filelocations) {
 											FileCompilationProperties nproperties = new FileCompilationProperties(
 													filelocation);
@@ -203,7 +222,56 @@ public class ClangCompileTaskFactory extends FrontendTaskFactory<Object> {
 								}
 							});
 
-					//TODO handle sub options
+					CompilationIdentifier targetmergeidentifier = CompilationIdentifier.concat(optionidentifier,
+							subid[0]);
+
+					for (ConfigSetupHolder configholder : configbuf) {
+						FileCompilationConfiguration config = configholder.config;
+						FileCompilationProperties configproperties = config.getProperties();
+						String configlanguage = configproperties.getLanguage();
+						ClangCompilerOptions.Visitor optionsvisitor = new ClangCompilerOptions.Visitor() {
+							@Override
+							public void visit(ClangCompilerOptions options) {
+								if (!CompilerUtils.canMergeIdentifiers(targetmergeidentifier,
+										options.getIdentifier() == null ? null
+												: options.getIdentifier().getIdentifier())) {
+									return;
+								}
+								if (!CompilerUtils.canMergeLanguages(configlanguage, options.getLanguage())) {
+									return;
+								}
+								mergeCompilerOptions(options, configproperties, taskcontext, sdkdescriptions);
+							}
+
+							private void mergeCompilerOptions(ClangCompilerOptions options,
+									FileCompilationProperties compilationproperties, TaskContext taskcontext,
+									NavigableMap<String, SDKDescription> sdkdescriptions) {
+								mergeIncludeDirectories(compilationproperties, toIncludePathOptions(taskcontext,
+										calculatedincludediroptions, options.getIncludeDirectories()));
+								mergeForceIncludes(compilationproperties, toIncludePathOptions(taskcontext,
+										calculatedincludediroptions, options.getForceInclude()));
+								mergeSDKDescriptionOptions(taskcontext, sdkdescriptions, options.getSDKs());
+								mergeMacroDefinitions(compilationproperties, options.getMacroDefinitions());
+								mergeSimpleParameters(compilationproperties, options.getSimpleCompilerParameters());
+
+								mergePrecompiledHeader(configholder,
+										TaskOptionUtils.toFileLocation(options.getPrecompiledHeader(), taskcontext));
+							}
+
+						};
+						if (suboptioninputpass[0] != null) {
+							Collection<ClangCompilerOptions> subcompileroptions = suboptioninputpass[0]
+									.getCompilerOptions();
+							if (!ObjectUtils.isNullOrEmpty(subcompileroptions)) {
+								for (ClangCompilerOptions options : subcompileroptions) {
+									options.accept(optionsvisitor);
+								}
+							}
+						}
+						for (ClangCompilerOptions options : compileroptions) {
+							options.accept(optionsvisitor);
+						}
+					}
 
 					for (ConfigSetupHolder configholder : configbuf) {
 						if (configholder.precompiledHeader != null) {
@@ -274,6 +342,85 @@ public class ClangCompileTaskFactory extends FrontendTaskFactory<Object> {
 			Collection<CompilationPathOption> indiroptions = calculatedincludediroptions.computeIfAbsent(indirtaskopt,
 					o -> o.toCompilationPaths(taskcontext));
 			ObjectUtils.addAll(inputincludedirs, indiroptions);
+		}
+	}
+
+	private static void mergeSimpleParameters(FileCompilationProperties config, Collection<String> simpleparams) {
+		if (ObjectUtils.isNullOrEmpty(simpleparams)) {
+			return;
+		}
+		TreeSet<String> result = ObjectUtils.newTreeSet(config.getSimpleParameters());
+		if (!result.addAll(simpleparams)) {
+			//not changed
+			return;
+		}
+		config.setSimpleParameters(result);
+	}
+
+	private static void mergeMacroDefinitions(FileCompilationProperties config, Map<String, String> macrodefs) {
+		if (ObjectUtils.isNullOrEmpty(macrodefs)) {
+			return;
+		}
+		Map<String, String> configmacros = config.getMacroDefinitions();
+		Map<String, String> nmacros;
+		if (configmacros == null) {
+			nmacros = ImmutableUtils.makeImmutableLinkedHashMap(macrodefs);
+		} else {
+			nmacros = new LinkedHashMap<>(configmacros);
+			for (Entry<String, String> entry : macrodefs.entrySet()) {
+				nmacros.putIfAbsent(entry.getKey(), entry.getValue());
+			}
+		}
+		config.setMacroDefinitions(nmacros);
+	}
+
+	private static void mergeIncludeDirectories(FileCompilationProperties config,
+			Collection<CompilationPathOption> includediroptions) {
+		if (ObjectUtils.isNullOrEmpty(includediroptions)) {
+			return;
+		}
+		config.setIncludeDirectories(
+				ObjectUtils.addAll(ObjectUtils.newLinkedHashSet(config.getIncludeDirectories()), includediroptions));
+	}
+
+	private static void mergeForceIncludes(FileCompilationProperties config,
+			Collection<CompilationPathOption> includeoptions) {
+		if (ObjectUtils.isNullOrEmpty(includeoptions)) {
+			return;
+		}
+		config.setForceInclude(
+				ObjectUtils.addAll(ObjectUtils.newLinkedHashSet(config.getForceInclude()), includeoptions));
+	}
+
+	private static void mergePrecompiledHeader(ConfigSetupHolder configholder, FileLocation pch) {
+		if (pch == null) {
+			return;
+		}
+		FileLocation presentpch = configholder.precompiledHeader;
+		if (presentpch != null && !presentpch.equals(pch)) {
+			throw new IllegalArgumentException(
+					"Option merge conflict for precompiled header: " + pch + " and " + presentpch);
+		}
+		configholder.precompiledHeader = pch;
+	}
+
+	public static void mergeSDKDescriptionOptions(TaskContext taskcontext,
+			NavigableMap<String, SDKDescription> sdkdescriptions, Map<String, SDKDescriptionTaskOption> sdks) {
+		if (ObjectUtils.isNullOrEmpty(sdks)) {
+			return;
+		}
+		for (Entry<String, SDKDescriptionTaskOption> entry : sdks.entrySet()) {
+			SDKDescriptionTaskOption val = entry.getValue();
+			SDKDescription[] desc = { null };
+			if (val != null) {
+				val.accept(new SDKDescriptionTaskOption.Visitor() {
+					@Override
+					public void visit(SDKDescription description) {
+						desc[0] = description;
+					}
+				});
+			}
+			sdkdescriptions.putIfAbsent(entry.getKey(), desc[0]);
 		}
 	}
 

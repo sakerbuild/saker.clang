@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 
 import saker.build.file.path.SakerPath;
+import saker.build.runtime.environment.SakerEnvironment;
 import saker.build.thirdparty.saker.util.ImmutableUtils;
 import saker.build.thirdparty.saker.util.io.IOUtils;
 import saker.clang.impl.sdk.DefaultClangSDKDescription;
@@ -24,6 +25,8 @@ public class ClangUtils {
 	public static final String SDK_NAME_CLANG = "Clang";
 
 	public static final SDKDescription DEFAULT_CLANG_SDK = new DefaultClangSDKDescription();
+
+	public static final String ENVIRONMENT_PARAMETER_CLANG_EXECUTABLES = "saker.clang.executables";
 
 	public static final String SDK_PATH_CLANG_EXECUTABLE = "exe";
 
@@ -89,11 +92,11 @@ public class ClangUtils {
 		return result;
 	}
 
-	public static int runClangProcess(List<String> commands, SakerPath workingdir, ProcessIOConsumer stdoutconsumer,
-			ProcessIOConsumer stderrconsumer, boolean mergestderr)
+	public static int runClangProcess(SakerEnvironment environment, List<String> commands, SakerPath workingdir,
+			ProcessIOConsumer stdoutconsumer, ProcessIOConsumer stderrconsumer, boolean mergestderr)
 			throws IllegalStateException, IOException, InterruptedException {
 		if (TestFlag.ENABLED) {
-			return TestFlag.metric().runProcess(commands, mergestderr,
+			return TestFlag.metric().runProcess(environment, commands, mergestderr,
 					stdoutconsumer == null ? null : stdoutconsumer::handleOutput,
 					stderrconsumer == null ? null : stderrconsumer::handleOutput);
 		}

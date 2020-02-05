@@ -1,4 +1,4 @@
-package testing.saker.clang.tests;
+package testing.saker.clang.tests.compile;
 
 import saker.build.file.path.SakerPath;
 import testing.saker.SakerTest;

@@ -1,8 +1,8 @@
-package testing.saker.clang.tests.pch;
+package testing.saker.clang.tests.compile.pch;
 
 import saker.build.file.path.SakerPath;
 import testing.saker.SakerTest;
-import testing.saker.clang.tests.ClangTestCase;
+import testing.saker.clang.tests.compile.ClangTestCase;
 
 @SakerTest
 public class MultiForceIncludePrecompiledHeaderTest extends ClangTestCase {

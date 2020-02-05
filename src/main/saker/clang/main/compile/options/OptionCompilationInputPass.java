@@ -29,6 +29,8 @@ public interface OptionCompilationInputPass {
 	public String getLanguage();
 
 	public Collection<CompilationPathTaskOption> getIncludeDirectories();
+	
+	public Collection<ClangCompilerOptions> getCompilerOptions();
 
 	public CompilationIdentifierTaskOption getSubIdentifier();
 

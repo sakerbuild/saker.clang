@@ -13,37 +13,41 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package testing.saker.clang.tests;
+package testing.saker.clang.tests.compile;
+
+import java.util.Map;
+import java.util.TreeMap;
 
 import saker.build.file.path.SakerPath;
+import saker.build.thirdparty.saker.util.ObjectUtils;
 import testing.saker.SakerTest;
 
 @SakerTest
-public class InsertIncludeOrderTest extends ClangTestCase {
+public class MacroDefineTest extends ClangTestCase {
 	private static final SakerPath PATH_MAINC_OBJ = PATH_BUILD_DIRECTORY
 			.resolve("saker.clang.compile/default/main.c.o");
 
+	private int macroVal;
+
+	@Override
+	protected Map<String, ?> getTaskVariables() {
+		TreeMap<String, Object> result = ObjectUtils.newTreeMap(super.getTaskVariables());
+		result.put("test.macro.val", macroVal);
+		return result;
+	}
+
 	@Override
 	protected void runTestImpl() throws Throwable {
-		//create the dir as git doesnt track empty directories
-		files.createDirectories(PATH_WORKING_DIRECTORY.resolve("inc1"));
-
+		macroVal = 456;
 		runScriptTask("build");
-		assertEquals(files.getAllBytes(PATH_MAINC_OBJ).toString(), compile(LANG_C, TARGET_DEFAULT, 123, 456));
+		assertEquals(files.getAllBytes(PATH_MAINC_OBJ).toString(), compile(LANG_C, TARGET_DEFAULT, 123, macroVal));
 
-		files.putFile(PATH_WORKING_DIRECTORY.resolve("inc1/header.h"), "10".getBytes());
-		runScriptTask("build");
-		assertNotEmpty(getMetric().getRunTaskIdFactories());
-		assertEquals(files.getAllBytes(PATH_MAINC_OBJ).toString(), compile(LANG_C, TARGET_DEFAULT, 10, 456));
-
-		files.putFile(PATH_WORKING_DIRECTORY.resolve("inc2/header.h"), "20".getBytes());
 		runScriptTask("build");
 		assertEmpty(getMetric().getRunTaskIdFactories());
 
-		files.delete(PATH_WORKING_DIRECTORY.resolve("inc1/header.h"));
+		macroVal = 789;
 		runScriptTask("build");
-		assertNotEmpty(getMetric().getRunTaskIdFactories());
-		assertEquals(files.getAllBytes(PATH_MAINC_OBJ).toString(), compile(LANG_C, TARGET_DEFAULT, 20, 456));
+		assertEquals(files.getAllBytes(PATH_MAINC_OBJ).toString(), compile(LANG_C, TARGET_DEFAULT, 123, macroVal));
 	}
 
 }

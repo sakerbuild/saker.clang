@@ -15,6 +15,7 @@
  */
 package testing.saker.clang;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
@@ -23,16 +24,16 @@ import saker.build.file.path.SakerPath;
 import saker.build.runtime.environment.SakerEnvironment;
 
 public interface ClangTestMetric {
-	public default int runProcess(List<String> command, boolean mergestderr, MetricProcessIOConsumer stdoutconsumer,
-			MetricProcessIOConsumer stderrconsumer) throws IOException {
+	public default int runProcess(SakerEnvironment environment, List<String> command, boolean mergestderr,
+			MetricProcessIOConsumer stdoutconsumer, MetricProcessIOConsumer stderrconsumer) throws IOException {
 		throw new UnsupportedOperationException();
 	}
 
 	public default void compiling(SakerPath path, SakerEnvironment environment) {
 	}
 
-	public default String getClangVersionString(String clangExe) {
-		throw new UnsupportedOperationException();
+	public default String getClangVersionString(String clangExe, SakerEnvironment environment) throws IOException {
+		throw new FileNotFoundException("Clang executable not found: " + clangExe);
 	}
 
 	@FunctionalInterface

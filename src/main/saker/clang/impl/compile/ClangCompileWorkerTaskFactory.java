@@ -1007,8 +1007,8 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 								CollectingProcessIOConsumer stdoutcollector = new CollectingProcessIOConsumer();
 								SakerPath workingdir = null;
 								//TODO handle working dir
-								int procresult = ClangUtils.runClangProcess(commands, workingdir, stdoutcollector, null,
-										true);
+								int procresult = ClangUtils.runClangProcess(environment, commands, workingdir,
+										stdoutcollector, null, true);
 								CompilationDependencyInfo depinfo = new CompilationDependencyInfo(pchcontents[0]);
 								pchproperties.getFileLocation().accept(new FileLocationVisitor() {
 									//add the compiled header file as an include dependency, so it is added to the source files
@@ -1077,7 +1077,7 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 			CollectingProcessIOConsumer stdoutcollector = new CollectingProcessIOConsumer();
 			//TODO valid working directory
 			SakerPath workingdir = null;
-			int procresult = ClangUtils.runClangProcess(commands, workingdir, stdoutcollector, null, true);
+			int procresult = ClangUtils.runClangProcess(environment, commands, workingdir, stdoutcollector, null, true);
 			CompilationDependencyInfo depinfo = new CompilationDependencyInfo(contents[0]);
 
 			ByteArrayRegion stdoutputbytes = stdoutcollector.getOutputBytes();

@@ -13,27 +13,45 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package testing.saker.clang.tests;
+package testing.saker.clang.tests.compile;
 
 import saker.build.file.path.SakerPath;
+import saker.build.thirdparty.saker.util.function.Functionals;
 import testing.saker.SakerTest;
+import testing.saker.clang.tests.mock.MockingClangTestMetric;
 
 @SakerTest
-public class ExecIncludeModificationTest extends ClangTestCase {
+public class SDKModifyTest extends ClangTestCase {
 	private static final SakerPath PATH_MAINC_OBJ = PATH_BUILD_DIRECTORY
 			.resolve("saker.clang.compile/default/main.c.o");
 
+	private String target;
+
+	@Override
+	protected MockingClangTestMetric createMetricImpl() {
+		MockingClangTestMetric result = super.createMetricImpl();
+		result.setDefaultTarget(target);
+		return result;
+	}
+
 	@Override
 	protected void runTestImpl() throws Throwable {
+		target = MockingClangTestMetric.DEFAULT_TARGET;
+
 		runScriptTask("build");
-		assertEquals(files.getAllBytes(PATH_MAINC_OBJ).toString(), compile(LANG_C, TARGET_DEFAULT, 123, 456));
+		assertEquals(files.getAllBytes(PATH_MAINC_OBJ).toString(), compile(LANG_C, target, 123));
 
 		runScriptTask("build");
 		assertEmpty(getMetric().getRunTaskIdFactories());
 
-		files.putFile(PATH_WORKING_DIRECTORY.resolve("include/header.h"), "10".getBytes());
+		environment.invalidateEnvironmentPropertiesWaitExecutions(Functionals.alwaysPredicate());
 		runScriptTask("build");
-		assertEquals(files.getAllBytes(PATH_MAINC_OBJ).toString(), compile(LANG_C, TARGET_DEFAULT, 10, 456));
+		assertEmpty(getMetric().getRunTaskIdFactories());
+
+		target = MockingClangTestMetric.DIFF_TARGET;
+		environment.invalidateEnvironmentPropertiesWaitExecutions(Functionals.alwaysPredicate());
+		runScriptTask("build");
+		assertEquals(files.getAllBytes(PATH_MAINC_OBJ).toString(), compile(LANG_C, target, 123));
 	}
 
 }

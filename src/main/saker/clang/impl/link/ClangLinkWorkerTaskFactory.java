@@ -401,7 +401,7 @@ public class ClangLinkWorkerTaskFactory implements TaskFactory<Object>, Task<Obj
 			SakerPath workingdir = null;
 			//TODO valid working dir
 			CollectingProcessIOConsumer stdoutcollector = new CollectingProcessIOConsumer();
-			int procresult = ClangUtils.runClangProcess(commands, workingdir, stdoutcollector, null, true);
+			int procresult = ClangUtils.runClangProcess(environment, commands, workingdir, stdoutcollector, null, true);
 			taskcontext.getStandardOut().write(stdoutcollector.getOutputBytes());
 			if (procresult != 0) {
 				throw new IOException("Failed to link: " + procresult + " (0x" + Integer.toHexString(procresult) + ")");
