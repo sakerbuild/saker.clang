@@ -216,7 +216,7 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 					try {
 						ByteSink stdout = taskcontext.getStandardOut();
 						//write file name to signal progress, like MSVc
-						//TODO locked print
+						//XXX locked print
 						stdout.write(ByteArrayRegion
 								.wrap((outputpathkey.getPath().getFileName() + "\n").getBytes(StandardCharsets.UTF_8)));
 						stdout.write(depinfo.getProcessOutput());
@@ -229,9 +229,8 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 						public void visit(ExecutionFileLocation loc) {
 							sourcefilepath[0] = loc.getPath();
 						}
-						//TODO local file location
+						//TODO handle local file location
 					});
-					//TODO print precompiled header diagnostics
 					nprecompiledheaders
 							.computeIfAbsent(outputpathkey.getFileProviderKey(),
 									Functionals.concurrentSkipListMapComputer())
@@ -264,7 +263,7 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 				CompilationDependencyInfo depinfo = compilationresult.getDependencyInfo();
 				ByteArrayRegion procout = depinfo.getProcessOutput();
 				FileLocation compiledfilelocation = compilationentry.getProperties().getFileLocation();
-				//TODO locked print
+				//XXX locked print
 				taskcontext.getStandardOut().write(ByteArrayRegion
 						.wrap((ClangUtils.getFileName(compiledfilelocation) + '\n').getBytes(StandardCharsets.UTF_8)));
 				if (!procout.isEmpty()) {
@@ -354,7 +353,7 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 
 				@Override
 				public void visit(LocalFileLocation loc) {
-					// TODO report dependencies for local input files
+					// TODO handle local input file dependencies
 					FileLocationVisitor.super.visit(loc);
 				}
 			});
@@ -386,7 +385,7 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 
 								@Override
 								public void visit(LocalFileLocation loc) {
-									// TODO report dependencies for local include directories
+									// TODO handle local include directory dependencies
 									FileLocationVisitor.super.visit(loc);
 								}
 							});
@@ -559,7 +558,7 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 
 				@Override
 				public void visit(LocalFileLocation loc) {
-					// TODO check changes in local input file
+					// TODO handle local input file changes
 					FileLocationVisitor.super.visit(loc);
 				}
 			});
@@ -1005,8 +1004,8 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 								commands.add(pchdepfileoutpath.toString());
 
 								CollectingProcessIOConsumer stdoutcollector = new CollectingProcessIOConsumer();
-								SakerPath workingdir = null;
-								//TODO handle working dir
+								//use the output parent path as the working directory
+								SakerPath workingdir = SakerPath.valueOf(pchoutpath.getParent());
 								int procresult = ClangUtils.runClangProcess(environment, commands, workingdir,
 										stdoutcollector, null, true);
 								CompilationDependencyInfo depinfo = new CompilationDependencyInfo(pchcontents[0]);
@@ -1016,7 +1015,7 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 									public void visit(ExecutionFileLocation loc) {
 										depinfo.includes.add(loc.getPath());
 									}
-									//TODO support local
+									//TODO handle local precompiled header
 								});
 								analyzeClangOutput(taskcontext, includedirpaths, stdoutcollector.getOutputBytes(),
 										depinfo, procresult, pchdepfileoutpath, pchoutpath, pchcompilefilepath, null);
@@ -1075,8 +1074,8 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 			}
 
 			CollectingProcessIOConsumer stdoutcollector = new CollectingProcessIOConsumer();
-			//TODO valid working directory
-			SakerPath workingdir = null;
+			//use the output parent path as the working directory
+			SakerPath workingdir = SakerPath.valueOf(objoutpath.getParent());
 			int procresult = ClangUtils.runClangProcess(environment, commands, workingdir, stdoutcollector, null, true);
 			CompilationDependencyInfo depinfo = new CompilationDependencyInfo(contents[0]);
 

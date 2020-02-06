@@ -41,6 +41,7 @@ import saker.build.thirdparty.saker.util.ImmutableUtils;
 import saker.build.thirdparty.saker.util.ObjectUtils;
 import saker.build.thirdparty.saker.util.function.Functionals;
 import saker.build.thirdparty.saker.util.io.SerialUtils;
+import saker.clang.api.link.ClangLinkerWorkerTaskOutput;
 import saker.clang.impl.option.CompilationPathOption;
 import saker.clang.impl.option.FileCompilationPathOption;
 import saker.clang.impl.util.ClangUtils;
@@ -143,8 +144,7 @@ public class ClangLinkWorkerTaskFactory implements TaskFactory<Object>, Task<Obj
 		}
 		LinkerInnerTaskFactoryResult innertaskresult = nextres.getResult();
 
-		//TODO proper return value
-		return null;
+		return new ClangLinkerWorkerTaskOutputImpl(passcompilationidentifier, innertaskresult.getOutputPath());
 	}
 
 	@Override
@@ -215,6 +215,53 @@ public class ClangLinkWorkerTaskFactory implements TaskFactory<Object>, Task<Obj
 		} else if (!simpleParameters.equals(other.simpleParameters))
 			return false;
 		return true;
+	}
+
+	private static final class ClangLinkerWorkerTaskOutputImpl implements ClangLinkerWorkerTaskOutput, Externalizable {
+		private static final long serialVersionUID = 1L;
+
+		private CompilationIdentifier compilationIdentifier;
+		private SakerPath outputPath;
+
+		/**
+		 * For {@link Externalizable}.
+		 */
+		public ClangLinkerWorkerTaskOutputImpl() {
+		}
+
+		private ClangLinkerWorkerTaskOutputImpl(CompilationIdentifier passcompilationidentifier, SakerPath outputpath) {
+			this.compilationIdentifier = passcompilationidentifier;
+			this.outputPath = outputpath;
+		}
+
+		@Override
+		public SakerPath getOutputPath() {
+			return outputPath;
+		}
+
+		@Override
+		public CompilationIdentifier getIdentifier() {
+			return compilationIdentifier;
+		}
+
+		@Override
+		public void writeExternal(ObjectOutput out) throws IOException {
+			out.writeObject(compilationIdentifier);
+			out.writeObject(outputPath);
+		}
+
+		@Override
+		public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
+			compilationIdentifier = (CompilationIdentifier) in.readObject();
+			outputPath = (SakerPath) in.readObject();
+		}
+
+		@Override
+		public String toString() {
+			return getClass().getSimpleName() + "["
+					+ (compilationIdentifier != null ? "compilationIdentifier=" + compilationIdentifier + ", " : "")
+					+ (outputPath != null ? "outputPath=" + outputPath : "") + "]";
+		}
 	}
 
 	private static class LinkerInnerTaskFactoryResult implements Externalizable {
@@ -386,6 +433,7 @@ public class ClangLinkWorkerTaskFactory implements TaskFactory<Object>, Task<Obj
 
 			List<String> commands = new ArrayList<>();
 			commands.add(executable);
+			commands.addAll(simpleParameters);
 
 			for (Path lpath : libpaths) {
 				commands.add("-L");
@@ -398,8 +446,8 @@ public class ClangLinkWorkerTaskFactory implements TaskFactory<Object>, Task<Obj
 				commands.add(inputpath.toString());
 			}
 
-			SakerPath workingdir = null;
-			//TODO valid working dir
+			//use the output parent path as the working directory
+			SakerPath workingdir = SakerPath.valueOf(outputmirrorpath.getParent());
 			CollectingProcessIOConsumer stdoutcollector = new CollectingProcessIOConsumer();
 			int procresult = ClangUtils.runClangProcess(environment, commands, workingdir, stdoutcollector, null, true);
 			taskcontext.getStandardOut().write(stdoutcollector.getOutputBytes());

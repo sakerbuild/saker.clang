@@ -26,12 +26,15 @@ import saker.clang.impl.link.ClangLinkWorkerTaskFactory;
 import saker.clang.impl.link.ClangLinkWorkerTaskIdentifier;
 import saker.clang.impl.option.CompilationPathOption;
 import saker.clang.impl.util.ClangUtils;
+import saker.clang.main.compile.ClangCompileTaskFactory;
+import saker.clang.main.link.options.ClangLinkerOptions;
 import saker.clang.main.link.options.CompilerOutputLinkerInputPass;
 import saker.clang.main.link.options.FileLinkerInputPass;
 import saker.clang.main.link.options.LinkerInputPassOption;
 import saker.clang.main.link.options.LinkerInputPassTaskOption;
 import saker.clang.main.options.CompilationPathTaskOption;
 import saker.compiler.utils.api.CompilationIdentifier;
+import saker.compiler.utils.api.CompilerUtils;
 import saker.compiler.utils.main.CompilationIdentifierTaskOption;
 import saker.nest.utils.FrontendTaskFactory;
 import saker.sdk.support.api.SDKDescription;
@@ -64,13 +67,17 @@ public class ClangLinkTaskFactory extends FrontendTaskFactory<Object> {
 			@SakerInput(value = "SimpleParameters")
 			public Collection<String> simpleParametersOption;
 
+			@SakerInput(value = { "LinkerOptions" })
+			public Collection<ClangLinkerOptions> linkerOptionsOption;
+
 			@Override
 			public Object run(TaskContext taskcontext) throws Exception {
 				Collection<LinkerInputPassTaskOption> inputtaskoptions = new ArrayList<>();
+				Collection<ClangLinkerOptions> linkeroptions = new ArrayList<>();
 				Collection<CompilationPathTaskOption> libpathoptions = new ArrayList<>();
 				Map<String, SDKDescriptionTaskOption> sdkoptions = new TreeMap<>(
 						SDKSupportUtils.getSDKNameComparator());
-				List<String> simpleparameters = ImmutableUtils.makeImmutableList(this.simpleParametersOption);
+				List<String> simpleparameters = ObjectUtils.newArrayList(this.simpleParametersOption);
 				CompilationIdentifierTaskOption identifieropt = ObjectUtils.clone(this.identifierOption,
 						CompilationIdentifierTaskOption::clone);
 
@@ -87,6 +94,14 @@ public class ClangLinkTaskFactory extends FrontendTaskFactory<Object> {
 				if (ObjectUtils.isNullOrEmpty(inputtaskoptions)) {
 					taskcontext.abortExecution(new IllegalArgumentException("No inputs specified for linking."));
 					return null;
+				}
+				if (!ObjectUtils.isNullOrEmpty(this.linkerOptionsOption)) {
+					for (ClangLinkerOptions linkeropt : this.linkerOptionsOption) {
+						if (linkeropt == null) {
+							continue;
+						}
+						linkeroptions.add(linkeropt.clone());
+					}
 				}
 				if (!ObjectUtils.isNullOrEmpty(this.libraryPathOption)) {
 					for (CompilationPathTaskOption libpathtaskopt : this.libraryPathOption) {
@@ -146,7 +161,34 @@ public class ClangLinkTaskFactory extends FrontendTaskFactory<Object> {
 					ObjectUtils.addAll(librarypath, libpaths);
 				}
 
-				//TODO compiler options
+				for (ClangLinkerOptions options : linkeroptions) {
+					options.accept(new ClangLinkerOptions.Visitor() {
+						@Override
+						public void visit(ClangLinkerOptions options) {
+							if (!CompilerUtils.canMergeIdentifiers(optionidentifier,
+									options.getIdentifier() == null ? null : options.getIdentifier().getIdentifier())) {
+								return;
+							}
+							Collection<CompilationPathTaskOption> optlibrarypath = options.getLibraryPath();
+							if (!ObjectUtils.isNullOrEmpty(optlibrarypath)) {
+								for (CompilationPathTaskOption libpathtaskoption : optlibrarypath) {
+									Collection<CompilationPathOption> libpaths = calculatedlibpathoptions
+											.computeIfAbsent(libpathtaskoption, o -> o.toCompilationPaths(taskcontext));
+									ObjectUtils.addAll(librarypath, libpaths);
+								}
+							}
+							ClangCompileTaskFactory.mergeSDKDescriptionOptions(taskcontext, nullablesdkdescriptions,
+									options.getSDKs());
+							ObjectUtils.addAll(simpleparameters, options.getSimpleLinkerParameters());
+							Collection<LinkerInputPassTaskOption> optinput = options.getLinkerInput();
+							if (!ObjectUtils.isNullOrEmpty(optinput)) {
+								for (LinkerInputPassTaskOption opttaskin : optinput) {
+									addLinkerInputs(opttaskin, taskcontext, inputfiles);
+								}
+							}
+						}
+					});
+				}
 
 				nullablesdkdescriptions.putIfAbsent(ClangUtils.SDK_NAME_CLANG, ClangUtils.DEFAULT_CLANG_SDK);
 				nullablesdkdescriptions.values().removeIf(sdk -> sdk == null);

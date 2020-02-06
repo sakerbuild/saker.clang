@@ -65,9 +65,8 @@ public class ClangUtils {
 		env.remove("OBJCPLUS_INCLUDE_PATH");
 		env.remove("MACOSX_DEPLOYMENT_TARGET");
 
-		//XXX remove this environment when linking
-//		//based on http://releases.llvm.org/2.5/docs/CommandGuide/html/llvm-ld.html
-//		env.remove("LLVM_LIB_SEARCH_PATH");
+		//based on http://releases.llvm.org/2.5/docs/CommandGuide/html/llvm-ld.html
+		env.remove("LLVM_LIB_SEARCH_PATH");
 	}
 
 	public static ClangVersionInformation getClangVersionInformation(String executable)
