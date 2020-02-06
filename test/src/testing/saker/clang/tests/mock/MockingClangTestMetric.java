@@ -1,6 +1,5 @@
 package testing.saker.clang.tests.mock;
 
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
