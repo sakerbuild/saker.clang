@@ -78,6 +78,7 @@ import saker.build.thirdparty.saker.util.io.ByteSink;
 import saker.build.thirdparty.saker.util.io.DataInputUnsyncByteArrayInputStream;
 import saker.build.thirdparty.saker.util.io.SerialUtils;
 import saker.build.thirdparty.saker.util.io.UnsyncByteArrayOutputStream;
+import saker.build.trace.BuildTrace;
 import saker.clang.impl.compile.CompilerState.CompiledFileState;
 import saker.clang.impl.compile.CompilerState.PrecompiledHeaderState;
 import saker.clang.impl.option.CompilationPathOption;
@@ -146,6 +147,10 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 
 	@Override
 	public Object run(TaskContext taskcontext) throws Exception {
+		if (saker.build.meta.Versions.VERSION_FULL_COMPOUND >= 8_006) {
+			BuildTrace.classifyTask(BuildTrace.CLASSIFICATION_WORKER);
+		}
+
 		TaskIdentifier taskid = taskcontext.getTaskId();
 		if (!(taskid instanceof ClangCompileWorkerTaskIdentifier)) {
 			taskcontext.abortExecution(
@@ -154,11 +159,16 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 		}
 		ClangCompileWorkerTaskIdentifier workertaskid = (ClangCompileWorkerTaskIdentifier) taskid;
 		CompilationIdentifier passidentifier = workertaskid.getPassIdentifier();
-		String passid = passidentifier.toString();
-		taskcontext.setStandardOutDisplayIdentifier(ClangCompileTaskFactory.TASK_NAME + ":" + passid);
+		String passidstr = passidentifier.toString();
+		String displayid = ClangCompileTaskFactory.TASK_NAME + ":" + passidstr;
+		taskcontext.setStandardOutDisplayIdentifier(displayid);
+
+		if (saker.build.meta.Versions.VERSION_FULL_COMPOUND >= 8_006) {
+			BuildTrace.setDisplayInformation("clang.compile:" + passidstr, displayid);
+		}
 
 		SakerDirectory outdir = SakerPathFiles.requireBuildDirectory(taskcontext)
-				.getDirectoryCreate(ClangCompileTaskFactory.TASK_NAME).getDirectoryCreate(passid);
+				.getDirectoryCreate(ClangCompileTaskFactory.TASK_NAME).getDirectoryCreate(passidstr);
 		SakerPath outdirpath = outdir.getSakerPath();
 
 		TaskExecutionEnvironmentSelector envselector = SDKSupportUtils
@@ -926,6 +936,10 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 			ExecutionContext executioncontext = taskcontext.getExecutionContext();
 			SakerEnvironment environment = executioncontext.getEnvironment();
 			Path compilefilepath = getCompileFilePath(compilationentryproperties, environment, taskutilities, contents);
+
+			if (saker.build.meta.Versions.VERSION_FULL_COMPOUND >= 8_006) {
+				BuildTrace.setDisplayInformation(compilefilepath.getFileName().toString(), null);
+			}
 
 			List<Path> includedirpaths = getIncludePaths(taskutilities, environment,
 					compilationentryproperties.getIncludeDirectories(), true);

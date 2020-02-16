@@ -21,6 +21,7 @@ import saker.build.task.utils.dependencies.EqualityTaskOutputChangeDetector;
 import saker.build.thirdparty.saker.util.ImmutableUtils;
 import saker.build.thirdparty.saker.util.ObjectUtils;
 import saker.build.thirdparty.saker.util.StringUtils;
+import saker.build.trace.BuildTrace;
 import saker.clang.api.compile.ClangCompilerWorkerTaskOutput;
 import saker.clang.impl.link.ClangLinkWorkerTaskFactory;
 import saker.clang.impl.link.ClangLinkWorkerTaskIdentifier;
@@ -72,6 +73,10 @@ public class ClangLinkTaskFactory extends FrontendTaskFactory<Object> {
 
 			@Override
 			public Object run(TaskContext taskcontext) throws Exception {
+				if (saker.build.meta.Versions.VERSION_FULL_COMPOUND >= 8_006) {
+					BuildTrace.classifyTask(BuildTrace.CLASSIFICATION_FRONTEND);
+				}
+
 				Collection<LinkerInputPassTaskOption> inputtaskoptions = new ArrayList<>();
 				Collection<ClangLinkerOptions> linkeroptions = new ArrayList<>();
 				Collection<CompilationPathTaskOption> libpathoptions = new ArrayList<>();

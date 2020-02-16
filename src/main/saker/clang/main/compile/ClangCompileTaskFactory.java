@@ -25,6 +25,7 @@ import saker.build.thirdparty.saker.util.ImmutableUtils;
 import saker.build.thirdparty.saker.util.ObjectUtils;
 import saker.build.thirdparty.saker.util.StringUtils;
 import saker.build.thirdparty.saker.util.io.FileUtils;
+import saker.build.trace.BuildTrace;
 import saker.clang.impl.compile.ClangCompileWorkerTaskFactory;
 import saker.clang.impl.compile.ClangCompileWorkerTaskIdentifier;
 import saker.clang.impl.compile.FileCompilationConfiguration;
@@ -72,6 +73,10 @@ public class ClangCompileTaskFactory extends FrontendTaskFactory<Object> {
 
 			@Override
 			public Object run(TaskContext taskcontext) throws Exception {
+				if (saker.build.meta.Versions.VERSION_FULL_COMPOUND >= 8_006) {
+					BuildTrace.classifyTask(BuildTrace.CLASSIFICATION_FRONTEND);
+				}
+
 				List<CompilationInputPassTaskOption> inputpasses = new ArrayList<>();
 				Collection<ClangCompilerOptions> compileroptions = new ArrayList<>();
 				Map<String, SDKDescriptionTaskOption> sdkoptions = new TreeMap<>(

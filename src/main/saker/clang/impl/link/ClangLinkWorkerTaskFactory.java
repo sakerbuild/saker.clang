@@ -41,6 +41,7 @@ import saker.build.thirdparty.saker.util.ImmutableUtils;
 import saker.build.thirdparty.saker.util.ObjectUtils;
 import saker.build.thirdparty.saker.util.function.Functionals;
 import saker.build.thirdparty.saker.util.io.SerialUtils;
+import saker.build.trace.BuildTrace;
 import saker.clang.api.link.ClangLinkerWorkerTaskOutput;
 import saker.clang.impl.option.CompilationPathOption;
 import saker.clang.impl.option.FileCompilationPathOption;
@@ -98,6 +99,10 @@ public class ClangLinkWorkerTaskFactory implements TaskFactory<Object>, Task<Obj
 
 	@Override
 	public Object run(TaskContext taskcontext) throws Exception {
+		if (saker.build.meta.Versions.VERSION_FULL_COMPOUND >= 8_006) {
+			BuildTrace.classifyTask(BuildTrace.CLASSIFICATION_WORKER);
+		}
+
 		TaskIdentifier taskid = taskcontext.getTaskId();
 		if (!(taskid instanceof ClangLinkWorkerTaskIdentifier)) {
 			taskcontext.abortExecution(
@@ -107,7 +112,12 @@ public class ClangLinkWorkerTaskFactory implements TaskFactory<Object>, Task<Obj
 		ClangLinkWorkerTaskIdentifier workertaskid = (ClangLinkWorkerTaskIdentifier) taskid;
 		CompilationIdentifier passcompilationidentifier = workertaskid.getPassIdentifier();
 		String passidstr = passcompilationidentifier.toString();
-		taskcontext.setStandardOutDisplayIdentifier(ClangLinkTaskFactory.TASK_NAME + ":" + passidstr);
+		String displayid = ClangLinkTaskFactory.TASK_NAME + ":" + passidstr;
+		taskcontext.setStandardOutDisplayIdentifier(displayid);
+
+		if (saker.build.meta.Versions.VERSION_FULL_COMPOUND >= 8_006) {
+			BuildTrace.setDisplayInformation("clang.link:" + passidstr, displayid);
+		}
 
 		SakerDirectory outdir = SakerPathFiles.requireBuildDirectory(taskcontext)
 				.getDirectoryCreate(ClangLinkTaskFactory.TASK_NAME).getDirectoryCreate(passidstr);
@@ -120,8 +130,8 @@ public class ClangLinkWorkerTaskFactory implements TaskFactory<Object>, Task<Obj
 		if (envselector != null) {
 			EnvironmentSelectionResult envselectionresult;
 			try {
-				envselectionresult = taskcontext.getTaskUtilities()
-						.getReportExecutionDependency(SakerStandardUtils.createEnvironmentSelectionTestExecutionProperty(envselector));
+				envselectionresult = taskcontext.getTaskUtilities().getReportExecutionDependency(
+						SakerStandardUtils.createEnvironmentSelectionTestExecutionProperty(envselector));
 			} catch (Exception e) {
 				throw new TaskEnvironmentSelectionFailedException(
 						"Failed to select a suitable build environment for linking.", e);
@@ -425,6 +435,11 @@ public class ClangLinkWorkerTaskFactory implements TaskFactory<Object>, Task<Obj
 				outputfilename = passIdentifier;
 			}
 			SakerPath outputexecpath = outDirectoryPath.resolve(outputfilename);
+
+			if (saker.build.meta.Versions.VERSION_FULL_COMPOUND >= 8_006) {
+				BuildTrace.setDisplayInformation(outputexecpath.getFileName(), null);
+			}
+
 			Path outputmirrorpath = taskcontext.getExecutionContext().toMirrorPath(outputexecpath);
 			LocalFileProvider.getInstance().createDirectories(outputmirrorpath.getParent());
 
@@ -470,6 +485,11 @@ public class ClangLinkWorkerTaskFactory implements TaskFactory<Object>, Task<Obj
 					outputsakerfile.getContentDescriptor());
 
 			LinkerInnerTaskFactoryResult result = new LinkerInnerTaskFactoryResult(outputexecpath);
+
+			if (saker.build.meta.Versions.VERSION_FULL_COMPOUND >= 8_006) {
+				BuildTrace.reportOutputArtifact(outputexecpath, BuildTrace.ARTIFACT_EMBED_DEFAULT);
+			}
+
 			return result;
 		}
 
