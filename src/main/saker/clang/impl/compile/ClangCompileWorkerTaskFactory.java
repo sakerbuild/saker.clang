@@ -84,7 +84,6 @@ import saker.clang.impl.option.CompilationPathOption;
 import saker.clang.impl.option.FileCompilationPathOption;
 import saker.clang.impl.util.ClangUtils;
 import saker.clang.impl.util.CollectingProcessIOConsumer;
-import saker.clang.impl.util.EnvironmentSelectionTestExecutionProperty;
 import saker.clang.impl.util.InnerTaskMirrorHandler;
 import saker.clang.main.compile.ClangCompileTaskFactory;
 import saker.compiler.utils.api.CompilationIdentifier;
@@ -99,6 +98,7 @@ import saker.std.api.file.location.ExecutionFileLocation;
 import saker.std.api.file.location.FileLocation;
 import saker.std.api.file.location.FileLocationVisitor;
 import saker.std.api.file.location.LocalFileLocation;
+import saker.std.api.util.SakerStandardUtils;
 import testing.saker.clang.TestFlag;
 
 public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<Object>, Externalizable {
@@ -167,8 +167,8 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 		EnvironmentSelectionResult envselectionresult;
 		if (envselector != null) {
 			try {
-				envselectionresult = taskcontext.getTaskUtilities()
-						.getReportExecutionDependency(new EnvironmentSelectionTestExecutionProperty(envselector));
+				envselectionresult = taskcontext.getTaskUtilities().getReportExecutionDependency(
+						SakerStandardUtils.createEnvironmentSelectionTestExecutionProperty(envselector));
 			} catch (Exception e) {
 				throw new TaskEnvironmentSelectionFailedException(
 						"Failed to select a suitable build environment for compilation.", e);

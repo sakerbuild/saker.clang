@@ -46,7 +46,6 @@ import saker.clang.impl.option.CompilationPathOption;
 import saker.clang.impl.option.FileCompilationPathOption;
 import saker.clang.impl.util.ClangUtils;
 import saker.clang.impl.util.CollectingProcessIOConsumer;
-import saker.clang.impl.util.EnvironmentSelectionTestExecutionProperty;
 import saker.clang.main.link.ClangLinkTaskFactory;
 import saker.compiler.utils.api.CompilationIdentifier;
 import saker.sdk.support.api.SDKDescription;
@@ -60,6 +59,7 @@ import saker.std.api.file.location.ExecutionFileLocation;
 import saker.std.api.file.location.FileLocation;
 import saker.std.api.file.location.FileLocationVisitor;
 import saker.std.api.file.location.LocalFileLocation;
+import saker.std.api.util.SakerStandardUtils;
 
 public class ClangLinkWorkerTaskFactory implements TaskFactory<Object>, Task<Object>, Externalizable {
 	private static final long serialVersionUID = 1L;
@@ -121,7 +121,7 @@ public class ClangLinkWorkerTaskFactory implements TaskFactory<Object>, Task<Obj
 			EnvironmentSelectionResult envselectionresult;
 			try {
 				envselectionresult = taskcontext.getTaskUtilities()
-						.getReportExecutionDependency(new EnvironmentSelectionTestExecutionProperty(envselector));
+						.getReportExecutionDependency(SakerStandardUtils.createEnvironmentSelectionTestExecutionProperty(envselector));
 			} catch (Exception e) {
 				throw new TaskEnvironmentSelectionFailedException(
 						"Failed to select a suitable build environment for linking.", e);
