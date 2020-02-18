@@ -217,17 +217,23 @@ _testapicompile(
 	out javac,
 	out instrumentedjar,
 ){
-	$instrumentedjar = nest.test.instrument(
-		nest.bundle.download("saker.build-test-v{ static(VERSION_saker.build) }")[BundlePaths][0],
-		NestVersion: static(VERSION_saker.nest),
-	)
+	if $enabled {
+		$instrumentedjar = nest.test.instrument(
+			nest.bundle.download("saker.build-test-v{ static(VERSION_saker.build) }")[BundlePaths][0],
+			NestVersion: static(VERSION_saker.nest),
+		)
+		$sakerbuildcp = $instrumentedjar
+	} else {
+		$instrumentedjar = null
+		$sakerbuildcp = saker.java.classpath.bundle("saker.build-api-v{ static(VERSION_saker.build) }")
+	}
 	$javac = saker.java.compile(
 		SourceDirectories: [
 			testapi/common/,
 			$enabled ? testapi/enabled/ : testapi/disabled/,
 		],
 		ClassPath: [
-			$instrumentedjar,
+			$sakerbuildcp,
 		],
 		Identifier: "testapi-{ $enabled ? enabled : disabled }",
 	)
