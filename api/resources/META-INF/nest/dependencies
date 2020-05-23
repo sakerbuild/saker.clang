@@ -1,4 +1,5 @@
 saker.clang-impl
 	classpath: [this]
+		compile-transitive: false
 saker.compiler.utils-api
 	classpath: [0)

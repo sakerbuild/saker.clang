@@ -67,7 +67,7 @@ public class MockingClangTestMetric extends CollectingTestMetric implements Clan
 	public int runProcess(SakerEnvironment environment, List<String> command, boolean mergestderr,
 			MetricProcessIOConsumer stdoutconsumer, MetricProcessIOConsumer stderrconsumer) throws IOException {
 		runCommands.computeIfAbsent(command, x -> new LongAdder()).increment();
-		System.out.println("MockingMSVCTestMetric.startProcess() " + command);
+		System.out.println("MockingClangTestMetric.startProcess() " + command);
 		SakerPath exepath = SakerPath.valueOf(command.get(0));
 		String defaulttarget = getEnvironmentDefaultTarget(environment);
 		String compilerversion = DEFAULT_VERSION;

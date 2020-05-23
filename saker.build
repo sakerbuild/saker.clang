@@ -34,7 +34,7 @@ compile(
 			saker.java.classpath.bundle($resolveddependencies),
 			$testapicompile[javac],
 		],
-		Identifier: "saker.clang",	
+		Identifier: "saker.clang{ $testapicompile[enabled] ? "-testing" : "" }",	
 	)
 }
 export(

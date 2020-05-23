@@ -43,6 +43,7 @@ public class MacroDefineTest extends ClangTestCase {
 		assertEquals(files.getAllBytes(PATH_MAINC_OBJ).toString(), compile(LANG_C, TARGET_DEFAULT, 123, macroVal));
 
 		runScriptTask("build");
+		System.out.println(getMetric().getRunTaskIdDeltas());
 		assertEmpty(getMetric().getRunTaskIdFactories());
 
 		macroVal = 789;

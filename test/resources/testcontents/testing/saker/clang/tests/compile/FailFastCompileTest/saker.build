@@ -1,0 +1,3 @@
+build {
+	saker.clang.compile([*.c, *.cpp])
+}

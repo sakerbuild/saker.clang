@@ -5,6 +5,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.ObjectInput;
 import java.io.ObjectOutput;
+import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
@@ -52,6 +53,7 @@ import saker.build.task.InnerTaskResultHolder;
 import saker.build.task.InnerTaskResults;
 import saker.build.task.Task;
 import saker.build.task.TaskContext;
+import saker.build.task.TaskDuplicationPredicate;
 import saker.build.task.TaskExecutionEnvironmentSelector;
 import saker.build.task.TaskExecutionUtilities;
 import saker.build.task.TaskExecutionUtilities.MirroredFileContents;
@@ -61,16 +63,17 @@ import saker.build.task.delta.DeltaType;
 import saker.build.task.delta.FileChangeDelta;
 import saker.build.task.exception.TaskEnvironmentSelectionFailedException;
 import saker.build.task.identifier.TaskIdentifier;
-import saker.build.task.utils.FixedTaskDuplicationPredicate;
 import saker.build.task.utils.TaskUtils;
 import saker.build.thirdparty.saker.rmi.annot.transfer.RMISerialize;
 import saker.build.thirdparty.saker.rmi.annot.transfer.RMIWrap;
+import saker.build.thirdparty.saker.rmi.connection.RMIVariables;
 import saker.build.thirdparty.saker.rmi.io.RMIObjectInput;
 import saker.build.thirdparty.saker.rmi.io.RMIObjectOutput;
 import saker.build.thirdparty.saker.rmi.io.wrap.RMIWrapper;
 import saker.build.thirdparty.saker.util.ConcurrentPrependAccumulator;
 import saker.build.thirdparty.saker.util.ImmutableUtils;
 import saker.build.thirdparty.saker.util.ObjectUtils;
+import saker.build.thirdparty.saker.util.ReflectUtils;
 import saker.build.thirdparty.saker.util.function.Functionals;
 import saker.build.thirdparty.saker.util.function.LazySupplier;
 import saker.build.thirdparty.saker.util.io.ByteArrayRegion;
@@ -214,9 +217,11 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 			System.out.println("Compiling " + sccount + " source file" + (sccount == 1 ? "" : "s") + ".");
 			ConcurrentPrependAccumulator<FileCompilationConfiguration> fileaccumulator = new ConcurrentPrependAccumulator<>(
 					compilationentries);
+			CompilationDuplicationPredicate duplicationpredicate = new CompilationDuplicationPredicate(fileaccumulator);
+
 			InnerTaskExecutionParameters innertaskparams = new InnerTaskExecutionParameters();
 			innertaskparams.setClusterDuplicateFactor(compilationentries.size());
-			innertaskparams.setDuplicationPredicate(new FixedTaskDuplicationPredicate(compilationentries.size()));
+			innertaskparams.setDuplicationPredicate(duplicationpredicate);
 
 			WorkerTaskCoordinator coordinator = new WorkerTaskCoordinator() {
 				@Override
@@ -225,7 +230,7 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 					CompilationDependencyInfo depinfo = result.getDependencyInfo();
 					try {
 						ByteSink stdout = taskcontext.getStandardOut();
-						//write file name to signal progress, like MSVc
+						//write file name to signal progress, like MSVC
 						//XXX locked print
 						stdout.write(ByteArrayRegion
 								.wrap((outputpathkey.getPath().getFileName() + "\n").getBytes(StandardCharsets.UTF_8)));
@@ -255,9 +260,22 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 						RootFileProviderKey fpk) {
 					return nprecompiledheaders.get(fpk);
 				}
+
+				@Override
+				public FileCompilationConfiguration take() {
+					if (duplicationpredicate.isAborted()) {
+						return null;
+					}
+					return fileaccumulator.take();
+				}
+
+				@Override
+				public void setAborted() {
+					duplicationpredicate.setAborted();
+				}
 			};
-			SourceCompilerInnerTaskFactory innertask = new SourceCompilerInnerTaskFactory(coordinator,
-					fileaccumulator::take, outdirpath, compilerinnertasksdkdescriptions, envselector, outdir);
+			SourceCompilerInnerTaskFactory innertask = new SourceCompilerInnerTaskFactory(coordinator, outdirpath,
+					compilerinnertasksdkdescriptions, envselector, outdir);
 			InnerTaskResults<CompilerInnerTaskResult> innertaskresults = taskcontext.startInnerTask(innertask,
 					innertaskparams);
 			InnerTaskResultHolder<CompilerInnerTaskResult> resultholder;
@@ -279,6 +297,9 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 				if (!procout.isEmpty()) {
 					taskcontext.println(procout.toString());
 				}
+				if (!compilationresult.isSuccessful()) {
+					coordinator.setAborted();
+				}
 				compiledfilelocation.accept(new FileLocationVisitor() {
 					@Override
 					public void visit(ExecutionFileLocation loc) {
@@ -287,6 +308,7 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 						compiledfilestate.setCompilerProcessOutput(depinfo.getProcessOutput());
 						compiledfilestate.setIncludes(depinfo.getIncludes());
 						compiledfilestate.setFailedIncludes(depinfo.getFailedIncludes());
+						compiledfilestate.setSuccessful(compilationresult.isSuccessful());
 						if (compilationresult.isSuccessful()) {
 							String outputobjectfilename = compilationresult.getOutputObjectName();
 							if (outputobjectfilename != null) {
@@ -437,6 +459,33 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 				sdkDescriptions);
 	}
 
+	private static final class CompilationDuplicationPredicate implements TaskDuplicationPredicate {
+		private final ConcurrentPrependAccumulator<FileCompilationConfiguration> compilationFiles;
+		private boolean aborted;
+
+		private CompilationDuplicationPredicate(
+				ConcurrentPrependAccumulator<FileCompilationConfiguration> fileaccumulator) {
+			this.compilationFiles = fileaccumulator;
+		}
+
+		@Override
+		public boolean shouldInvokeOnceMore() throws RuntimeException {
+			if (compilationFiles.isEmpty()) {
+				return false;
+			}
+			return !aborted;
+		}
+
+		public void setAborted() {
+			this.aborted = true;
+		}
+
+		public boolean isAborted() {
+			return aborted;
+		}
+
+	}
+
 	private static final class NothingKeepKnownDirectoryVisitPredicate implements DirectoryVisitPredicate {
 		@Override
 		public DirectoryVisitPredicate directoryVisitor(String arg0, SakerDirectory arg1) {
@@ -517,12 +566,14 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 			includeadditionfilenames.add(adddelta.getFilePath().getFileName());
 		}
 
+		boolean[] hadfailure = { false };
+
 		NavigableMap<String, CompiledFileState> prevcompiledfiles = new TreeMap<>(
 				prevoutput.getExecutionCompiledFiles());
 		for (Iterator<FileCompilationConfiguration> it = compilationentries.iterator(); it.hasNext();) {
 			FileCompilationConfiguration compilationentry = it.next();
 			String outfilename = compilationentry.getOutFileName();
-			CompiledFileState prevfilestate = prevcompiledfiles.remove(outfilename);
+			CompiledFileState prevfilestate = prevcompiledfiles.get(outfilename);
 			if (prevfilestate == null) {
 				//wasn't compiled previously, compile now
 				continue;
@@ -563,6 +614,10 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 					}
 					stateexecutioncompiledfiles.put(outfilename, prevfilestate);
 
+					if (!prevfilestate.isSuccessful()) {
+						hadfailure[0] = true;
+					}
+
 					it.remove();
 				}
 
@@ -580,6 +635,23 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 				PrecompiledHeaderState pchstate = it.next();
 				NavigableSet<SakerPath> pchincludes = pchstate.getIncludes();
 				if (isAnyIncludeRelatedChange(includechanges, includeadditionfilenames, pchincludes)) {
+					it.remove();
+					continue;
+				}
+			}
+		}
+		if (hadfailure[0]) {
+			//we've had a compilation failure from the previous run
+			//for which the source file and any dependencies wasn't changed
+			//the build task WILL FAIL
+			//however, to improve incremental user experience we should
+			//recompile the modified files, but not the ones which had no previous state
+			for (Iterator<FileCompilationConfiguration> it = compilationentries.iterator(); it.hasNext();) {
+				FileCompilationConfiguration compilationentry = it.next();
+				String outfilename = compilationentry.getOutFileName();
+				CompiledFileState prevfilestate = prevcompiledfiles.get(outfilename);
+				if (prevfilestate == null) {
+					//wasn't compiled previously, don't compile it now either
 					it.remove();
 					continue;
 				}
@@ -811,12 +883,19 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 	}
 
 	public interface WorkerTaskCoordinator {
+		public static final Method METHOD_SET_ABORTED = ReflectUtils.getMethodAssert(WorkerTaskCoordinator.class,
+				"setAborted");
+
 		public void headerPrecompiled(@RMISerialize CompilerInnerTaskResult result, PathKey outputpathkey,
 				@RMISerialize ContentDescriptor outputcontents);
 
 		@RMISerialize
 		public NavigableMap<SakerPath, PrecompiledHeaderState> getPrecompiledHeaderStates(
 				@RMISerialize RootFileProviderKey fpk);
+
+		public FileCompilationConfiguration take();
+
+		public void setAborted();
 	}
 
 	private static class PrecompiledHeaderDependencyInfo {
@@ -839,7 +918,6 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 	private static class SourceCompilerInnerTaskFactory
 			implements TaskFactory<CompilerInnerTaskResult>, Task<CompilerInnerTaskResult> {
 		protected WorkerTaskCoordinator coordinator;
-		protected Supplier<FileCompilationConfiguration> fileLocationSuppier;
 		protected SakerPath outputDirPath;
 		protected NavigableMap<String, SDKDescription> sdkDescriptions;
 		protected TaskExecutionEnvironmentSelector environmentSelector;
@@ -865,12 +943,10 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 		public SourceCompilerInnerTaskFactory() {
 		}
 
-		public SourceCompilerInnerTaskFactory(WorkerTaskCoordinator coordinator,
-				Supplier<FileCompilationConfiguration> fileLocationSuppier, SakerPath outputDirPath,
+		public SourceCompilerInnerTaskFactory(WorkerTaskCoordinator coordinator, SakerPath outputDirPath,
 				NavigableMap<String, SDKDescription> sdkDescriptions, TaskExecutionEnvironmentSelector envselector,
 				SakerDirectory outputDir) {
 			this.coordinator = coordinator;
-			this.fileLocationSuppier = fileLocationSuppier;
 			this.outputDirPath = outputDirPath;
 			this.sdkDescriptions = sdkDescriptions;
 			this.environmentSelector = envselector;
@@ -925,7 +1001,7 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 
 		@Override
 		public CompilerInnerTaskResult run(TaskContext taskcontext) throws Exception {
-			FileCompilationConfiguration compilationentry = fileLocationSuppier.get();
+			FileCompilationConfiguration compilationentry = coordinator.take();
 			if (compilationentry == null) {
 				return null;
 			}
@@ -1106,6 +1182,7 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 			CompilerInnerTaskResult result;
 			if (procresult != 0) {
 				result = CompilerInnerTaskResult.failed(compilationentry);
+				RMIVariables.invokeRemoteMethodAsyncOrLocal(coordinator, WorkerTaskCoordinator.METHOD_SET_ABORTED);
 			} else {
 				ProviderHolderPathKey objoutpathkey = localfp.getPathKey(objoutpath);
 				taskutilities.addSynchronizeInvalidatedProviderPathFileToDirectory(outputDir, objoutpathkey,
@@ -1602,7 +1679,6 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 		@Override
 		public void writeWrapped(RMIObjectOutput out) throws IOException {
 			out.writeRemoteObject(task.coordinator);
-			out.writeRemoteObject(task.fileLocationSuppier);
 			out.writeObject(task.outputDirPath);
 			out.writeSerializedObject(task.sdkDescriptions);
 			out.writeSerializedObject(task.environmentSelector);
@@ -1614,7 +1690,6 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 		public void readWrapped(RMIObjectInput in) throws IOException, ClassNotFoundException {
 			task = new SourceCompilerInnerTaskFactory();
 			task.coordinator = (WorkerTaskCoordinator) in.readObject();
-			task.fileLocationSuppier = (Supplier<FileCompilationConfiguration>) in.readObject();
 			task.outputDirPath = (SakerPath) in.readObject();
 			task.sdkDescriptions = (NavigableMap<String, SDKDescription>) in.readObject();
 			task.environmentSelector = (TaskExecutionEnvironmentSelector) in.readObject();
