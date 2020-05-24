@@ -1,0 +1,13 @@
+build {
+	$sdk = saker.clang.sdk(
+		Executable: clang++
+	)
+	$compile = saker.clang.compile(
+		[*.cpp], 
+		SDKs: { Clang: $sdk }
+	)
+	saker.clang.link(
+		$compile, 
+		SDKs: { Clang: $sdk }
+	)
+}

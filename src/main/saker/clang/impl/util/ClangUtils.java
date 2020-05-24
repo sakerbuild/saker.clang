@@ -25,6 +25,7 @@ public class ClangUtils {
 	public static final SDKDescription DEFAULT_CLANG_SDK = new DefaultClangSDKDescription();
 
 	public static final String ENVIRONMENT_PARAMETER_CLANG_EXECUTABLES = "saker.clang.executables";
+	public static final String ENVIRONMENT_PARAMETER_CLANGXX_EXECUTABLES = "saker.clang++.executables";
 
 	public static final String SDK_PATH_CLANG_EXECUTABLE = "exe";
 
@@ -84,9 +85,7 @@ public class ClangUtils {
 
 		String output = stdoutconsumer.getOutputString();
 
-		ClangVersionInformation result = new ClangVersionInformation(output);
-
-		return result;
+		return ClangVersionInformation.createFromVersionOutput(output);
 	}
 
 	public static int runClangProcess(SakerEnvironment environment, List<String> commands, SakerPath workingdir,

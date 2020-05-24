@@ -41,6 +41,9 @@ public class VersionInfoClangSDKReference implements SDKReference, Externalizabl
 
 	@Override
 	public SakerPath getPath(String identifier) throws Exception {
+		if (identifier == null) {
+			return null;
+		}
 		switch (identifier) {
 			case ClangUtils.SDK_PATH_CLANG_EXECUTABLE: {
 				return SakerPath.valueOf(exe);
@@ -54,6 +57,9 @@ public class VersionInfoClangSDKReference implements SDKReference, Externalizabl
 
 	@Override
 	public String getProperty(String identifier) throws Exception {
+		if (identifier == null) {
+			return null;
+		}
 		switch (identifier) {
 			case ClangUtils.SDK_PATH_CLANG_EXECUTABLE: {
 				return exe;
@@ -115,6 +121,6 @@ public class VersionInfoClangSDKReference implements SDKReference, Externalizabl
 
 	@Override
 	public String toString() {
-		return "ClangSDKReference[" + exe + " : " + versionInfo + "]";
+		return getClass().getSimpleName() + "[" + exe + " : " + versionInfo + "]";
 	}
 }

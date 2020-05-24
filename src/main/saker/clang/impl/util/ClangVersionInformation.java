@@ -18,7 +18,16 @@ public class ClangVersionInformation implements Externalizable {
 	public ClangVersionInformation() {
 	}
 
-	public ClangVersionInformation(String versioncmdoutput) {
+	public ClangVersionInformation(String version, String target, String threadModel) {
+		this.version = version;
+		this.target = target;
+		this.threadModel = threadModel;
+	}
+
+	public static ClangVersionInformation createFromVersionOutput(String versioncmdoutput) {
+		String version = null;
+		String target = null;
+		String threadModel = null;
 		int i = 0;
 		while (true) {
 			int idx = versioncmdoutput.indexOf('\n', i);
@@ -26,9 +35,9 @@ public class ClangVersionInformation implements Externalizable {
 				//first line
 				version = versioncmdoutput.substring(0, idx);
 			} else if (versioncmdoutput.startsWith("Target: ", i)) {
-				this.target = versioncmdoutput.substring(i + 8, idx);
+				target = versioncmdoutput.substring(i + 8, idx);
 			} else if (versioncmdoutput.startsWith("Thread model: ", i)) {
-				this.threadModel = versioncmdoutput.substring(i + 14, idx);
+				threadModel = versioncmdoutput.substring(i + 14, idx);
 			}
 			if (idx < 0) {
 				//last line
@@ -36,6 +45,10 @@ public class ClangVersionInformation implements Externalizable {
 			}
 			i = idx + 1;
 		}
+		if (version == null && target == null && threadModel == null) {
+			return null;
+		}
+		return new ClangVersionInformation(version, target, threadModel);
 	}
 
 	public String getVersion() {

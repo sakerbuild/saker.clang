@@ -28,7 +28,8 @@ public class ClangVersionInformationEnvironmentProperty
 	@Override
 	public ClangVersionInformation getCurrentValue(SakerEnvironment environment) throws Exception {
 		if (TestFlag.ENABLED) {
-			return new ClangVersionInformation(TestFlag.metric().getClangVersionString(clangExe, environment));
+			return ClangVersionInformation
+					.createFromVersionOutput(TestFlag.metric().getClangVersionString(clangExe, environment));
 		}
 		return ClangUtils.getClangVersionInformation(clangExe);
 	}

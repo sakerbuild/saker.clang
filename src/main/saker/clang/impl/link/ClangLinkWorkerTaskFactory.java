@@ -140,7 +140,8 @@ public class ClangLinkWorkerTaskFactory implements TaskFactory<Object>, Task<Obj
 			envselector = SDKSupportUtils
 					.getSDKBasedClusterExecutionEnvironmentSelector(linkerinnertasksdkdescriptions.values());
 		}
-
+		//TODO else we probably should report a dependency on the resolved sdks
+		
 		int inputsize = inputs.size();
 		System.out.println("Linking " + inputsize + " file" + (inputsize == 1 ? "" : "s") + ".");
 

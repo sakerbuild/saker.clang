@@ -22,6 +22,7 @@ public class MockingClangTestMetric extends CollectingTestMetric implements Clan
 	public static final String DIFF_THREADMODEL = "single";
 
 	public static final SakerPath CLANG_EXECUTABLE_PATH_DEFAULT = SakerPath.valueOf("clang");
+	public static final SakerPath CLANGXX_EXECUTABLE_PATH_DEFAULT = SakerPath.valueOf("clang++");
 	public static final String DEFAULT_VERSION = "6.0.0-1ubuntu2";
 	public static final String DEFAULT_TARGET = "x86_64-pc-linux-gnu";
 	public static final String DEFAULT_THREADMODEL = "posix";
@@ -63,6 +64,10 @@ public class MockingClangTestMetric extends CollectingTestMetric implements Clan
 		}
 	}
 
+	public ConcurrentHashMap<List<String>, LongAdder> getRunCommands() {
+		return runCommands;
+	}
+
 	@Override
 	public int runProcess(SakerEnvironment environment, List<String> command, boolean mergestderr,
 			MetricProcessIOConsumer stdoutconsumer, MetricProcessIOConsumer stderrconsumer) throws IOException {
@@ -73,7 +78,7 @@ public class MockingClangTestMetric extends CollectingTestMetric implements Clan
 		String compilerversion = DEFAULT_VERSION;
 		String defaultthreadmodel = DEFAULT_THREADMODEL;
 
-		if (CLANG_EXECUTABLE_PATH_DEFAULT.equals(exepath)) {
+		if (CLANG_EXECUTABLE_PATH_DEFAULT.equals(exepath) || CLANGXX_EXECUTABLE_PATH_DEFAULT.equals(exepath)) {
 			//keep
 		} else if (CLANG_EXECUTABLE_PATH_VERSION_DIFF.equals(exepath)) {
 			compilerversion = DIFF_VERSION;
@@ -101,7 +106,7 @@ public class MockingClangTestMetric extends CollectingTestMetric implements Clan
 	public String getClangVersionString(String clangExe, SakerEnvironment environment) throws IOException {
 		SakerPath exepath = SakerPath.valueOf(clangExe);
 		String defaultTarget = getEnvironmentDefaultTarget(environment);
-		if (CLANG_EXECUTABLE_PATH_DEFAULT.equals(exepath)) {
+		if (CLANG_EXECUTABLE_PATH_DEFAULT.equals(exepath) || CLANGXX_EXECUTABLE_PATH_DEFAULT.equals(exepath)) {
 			return getClangVersionString(DEFAULT_VERSION, defaultTarget, DEFAULT_THREADMODEL);
 		}
 		if (CLANG_EXECUTABLE_PATH_VERSION_DIFF.equals(exepath)) {

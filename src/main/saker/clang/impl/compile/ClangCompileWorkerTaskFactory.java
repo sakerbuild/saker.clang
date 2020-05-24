@@ -190,6 +190,7 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 			envselector = SDKSupportUtils
 					.getSDKBasedClusterExecutionEnvironmentSelector(compilerinnertasksdkdescriptions.values());
 		} else {
+			//TODO in this case we probably should report a dependency on the resolved sdks
 			envselectionresult = null;
 		}
 
@@ -220,7 +221,9 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 			CompilationDuplicationPredicate duplicationpredicate = new CompilationDuplicationPredicate(fileaccumulator);
 
 			InnerTaskExecutionParameters innertaskparams = new InnerTaskExecutionParameters();
-			innertaskparams.setClusterDuplicateFactor(compilationentries.size());
+			if (envselector != null) {
+				innertaskparams.setClusterDuplicateFactor(compilationentries.size());
+			}
 			innertaskparams.setDuplicationPredicate(duplicationpredicate);
 
 			WorkerTaskCoordinator coordinator = new WorkerTaskCoordinator() {
@@ -1405,8 +1408,19 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 							++i;
 							continue;
 						}
-						throw new IllegalArgumentException("Unrecognized escaped character in dependency file: " + nc
-								+ " as 0x" + Integer.toHexString(nc) + " in line: " + l);
+						sb.append('\\');
+						sb.append(nc);
+						++i;
+						//if clang is invoked in windows (e.g. Android NDK)
+						//then it can produce backslashes in regular paths
+						//e.g.
+						//c:\the\path\to\source.cpp: \
+						//    etc...
+
+						//so we continue instead of throwing an exception
+						continue;
+//						throw new IllegalArgumentException("Unrecognized escaped character in dependency file: " + nc
+//								+ " as 0x" + Integer.toHexString(nc) + " in line: " + l + " at index: " + i);
 					}
 					if (c == ' ') {
 						//next file is coming up
