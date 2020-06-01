@@ -237,12 +237,13 @@ public class ClangCompileTaskFactory extends FrontendTaskFactory<Object> {
 						ClangCompilerOptions.Visitor optionsvisitor = new ClangCompilerOptions.Visitor() {
 							@Override
 							public void visit(ClangCompilerOptions options) {
+								CompilationIdentifierTaskOption optionsid = options.getIdentifier();
 								if (!CompilerUtils.canMergeIdentifiers(targetmergeidentifier,
-										options.getIdentifier() == null ? null
-												: options.getIdentifier().getIdentifier())) {
+										optionsid == null ? null : optionsid.getIdentifier())) {
 									return;
 								}
-								if (!CompilerUtils.canMergeLanguages(configlanguage, options.getLanguage())) {
+								Collection<String> optionslang = options.getLanguage();
+								if (!canMergeLanguages(configlanguage, optionslang)) {
 									return;
 								}
 								mergeCompilerOptions(options, configproperties, taskcontext, sdkdescriptions);
@@ -393,6 +394,18 @@ public class ClangCompileTaskFactory extends FrontendTaskFactory<Object> {
 		}
 		config.setForceInclude(
 				ObjectUtils.addAll(ObjectUtils.newLinkedHashSet(config.getForceInclude()), includeoptions));
+	}
+
+	private static boolean canMergeLanguages(String targetlang, Collection<String> optionslang) {
+		if (ObjectUtils.isNullOrEmpty(optionslang)) {
+			return true;
+		}
+		for (String lang : optionslang) {
+			if (CompilerUtils.canMergeLanguages(targetlang, lang)) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private static void mergePrecompiledHeader(ConfigSetupHolder configholder, FileLocation pch) {

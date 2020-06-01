@@ -19,7 +19,7 @@ public interface ClangCompilerOptions {
 		return null;
 	}
 
-	public default String getLanguage() {
+	public default Collection<String> getLanguage() {
 		return null;
 	}
 

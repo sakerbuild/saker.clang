@@ -1,6 +1,7 @@
 package saker.clang.main.compile.options;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 
 import saker.build.thirdparty.saker.util.ImmutableUtils;
@@ -13,7 +14,7 @@ import saker.std.main.file.option.FileLocationTaskOption;
 
 public class SimpleClangCompilerOptions implements ClangCompilerOptions {
 	private CompilationIdentifierTaskOption identifier;
-	private String language;
+	private List<String> language;
 	private Collection<CompilationPathTaskOption> includeDirectories;
 	private Map<String, SDKDescriptionTaskOption> sdks;
 	private Map<String, String> macroDefinitions;
@@ -23,7 +24,7 @@ public class SimpleClangCompilerOptions implements ClangCompilerOptions {
 
 	public SimpleClangCompilerOptions(ClangCompilerOptions copy) {
 		this.identifier = ObjectUtils.clone(copy.getIdentifier(), CompilationIdentifierTaskOption::clone);
-		this.language = copy.getLanguage();
+		this.language = ImmutableUtils.makeImmutableList(copy.getLanguage());
 		this.includeDirectories = ObjectUtils.cloneArrayList(copy.getIncludeDirectories(),
 				CompilationPathTaskOption::clone);
 		this.sdks = ObjectUtils.cloneTreeMap(copy.getSDKs(), Functionals.identityFunction(),
@@ -46,7 +47,7 @@ public class SimpleClangCompilerOptions implements ClangCompilerOptions {
 	}
 
 	@Override
-	public String getLanguage() {
+	public Collection<String> getLanguage() {
 		return language;
 	}
 
