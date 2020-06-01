@@ -165,8 +165,8 @@ public class ClangCompileTaskFactory extends FrontendTaskFactory<Object> {
 									}
 
 									Map<String, String> macrodefinitions = input.getMacroDefinitions();
-									Set<String> simpleparamoption = ImmutableUtils
-											.makeImmutableNavigableSet(input.getSimpleParameters());
+									List<String> simpleparamoption = ImmutableUtils
+											.makeImmutableList(input.getSimpleParameters());
 									String passlang = input.getLanguage();
 									FileLocation pchfilelocation = TaskOptionUtils
 											.toFileLocation(input.getPrecompiledHeader(), taskcontext);
@@ -354,11 +354,9 @@ public class ClangCompileTaskFactory extends FrontendTaskFactory<Object> {
 		if (ObjectUtils.isNullOrEmpty(simpleparams)) {
 			return;
 		}
-		TreeSet<String> result = ObjectUtils.newTreeSet(config.getSimpleParameters());
-		if (!result.addAll(simpleparams)) {
-			//not changed
-			return;
-		}
+		//do not deduplicate
+		List<String> result = ObjectUtils.newArrayList(config.getSimpleParameters());
+		result.addAll(simpleparams);
 		config.setSimpleParameters(result);
 	}
 

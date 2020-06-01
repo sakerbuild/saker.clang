@@ -8,7 +8,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.NavigableSet;
 
 import saker.build.thirdparty.saker.util.ImmutableUtils;
 import saker.build.thirdparty.saker.util.ObjectUtils;
@@ -25,7 +24,10 @@ public final class FileCompilationProperties implements Externalizable {
 	protected List<CompilationPathOption> includeDirectories;
 	protected List<CompilationPathOption> forceInclude;
 	protected Map<String, String> macroDefinitions;
-	protected NavigableSet<String> simpleParameters = Collections.emptyNavigableSet();
+	/**
+	 * The simple parameters are stored in a list as their order may matter
+	 */
+	protected List<String> simpleParameters = Collections.emptyList();
 
 	/**
 	 * For {@link Externalizable}.
@@ -74,11 +76,11 @@ public final class FileCompilationProperties implements Externalizable {
 		}
 	}
 
-	public void setSimpleParameters(Collection<String> simpleParameters) {
+	public void setSimpleParameters(List<String> simpleParameters) {
 		if (simpleParameters == null) {
-			this.simpleParameters = Collections.emptyNavigableSet();
+			this.simpleParameters = Collections.emptyList();
 		} else {
-			this.simpleParameters = ImmutableUtils.makeImmutableNavigableSet(simpleParameters);
+			this.simpleParameters = ImmutableUtils.makeImmutableList(simpleParameters);
 		}
 	}
 
@@ -102,7 +104,7 @@ public final class FileCompilationProperties implements Externalizable {
 		return macroDefinitions;
 	}
 
-	public NavigableSet<String> getSimpleParameters() {
+	public List<String> getSimpleParameters() {
 		return simpleParameters;
 	}
 
@@ -135,7 +137,7 @@ public final class FileCompilationProperties implements Externalizable {
 		includeDirectories = SerialUtils.readExternalImmutableList(in);
 		forceInclude = SerialUtils.readExternalImmutableList(in);
 		macroDefinitions = SerialUtils.readExternalImmutableLinkedHashMap(in);
-		simpleParameters = SerialUtils.readExternalSortedImmutableNavigableSet(in);
+		simpleParameters = SerialUtils.readExternalImmutableList(in);
 	}
 
 	@Override

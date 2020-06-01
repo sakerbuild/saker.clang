@@ -23,10 +23,6 @@ public interface ClangCompilerOptions {
 		return null;
 	}
 
-	public default String getArchitecture() {
-		return null;
-	}
-
 	public default Collection<CompilationPathTaskOption> getIncludeDirectories() {
 		return null;
 	}

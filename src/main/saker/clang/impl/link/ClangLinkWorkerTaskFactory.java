@@ -141,7 +141,7 @@ public class ClangLinkWorkerTaskFactory implements TaskFactory<Object>, Task<Obj
 					.getSDKBasedClusterExecutionEnvironmentSelector(linkerinnertasksdkdescriptions.values());
 		}
 		//TODO else we probably should report a dependency on the resolved sdks
-		
+
 		int inputsize = inputs.size();
 		System.out.println("Linking " + inputsize + " file" + (inputsize == 1 ? "" : "s") + ".");
 
@@ -430,8 +430,9 @@ public class ClangLinkWorkerTaskFactory implements TaskFactory<Object>, Task<Obj
 
 			String outputfilename;
 			if (simpleParameters.contains("-shared")) {
-				//XXX is mapLibraryName okay for generating the output library path?
-				outputfilename = System.mapLibraryName(passIdentifier);
+				//XXX find some better output file name for shared libraries
+				//    mapLibraryName is NOT okay as it is incorrect when cross compiling
+				outputfilename = passIdentifier;
 			} else {
 				outputfilename = passIdentifier;
 			}
@@ -449,6 +450,11 @@ public class ClangLinkWorkerTaskFactory implements TaskFactory<Object>, Task<Obj
 
 			List<String> commands = new ArrayList<>();
 			commands.add(executable);
+			//input file paths added first as the ordering of arguments matter somewhy
+			//we've encountered errors when the input files were added last
+			for (Path inputpath : inputfilepaths) {
+				commands.add(inputpath.toString());
+			}
 			commands.addAll(simpleParameters);
 
 			for (Path lpath : libpaths) {
@@ -458,13 +464,11 @@ public class ClangLinkWorkerTaskFactory implements TaskFactory<Object>, Task<Obj
 
 			commands.add("-o");
 			commands.add(outputmirrorpath.toString());
-			for (Path inputpath : inputfilepaths) {
-				commands.add(inputpath.toString());
-			}
 
 			//use the output parent path as the working directory
 			SakerPath workingdir = SakerPath.valueOf(outputmirrorpath.getParent());
 			CollectingProcessIOConsumer stdoutcollector = new CollectingProcessIOConsumer();
+
 			int procresult = ClangUtils.runClangProcess(environment, commands, workingdir, stdoutcollector, null, true);
 			taskcontext.getStandardOut().write(stdoutcollector.getOutputBytes());
 			if (procresult != 0) {

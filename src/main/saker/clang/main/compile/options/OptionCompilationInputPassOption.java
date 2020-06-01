@@ -18,10 +18,10 @@ public class OptionCompilationInputPassOption
 	private CompilationIdentifierTaskOption subIdentifier;
 	private Map<String, String> macroDefinitions;
 	private Collection<String> simpleParameters;
+	private Collection<ClangCompilerOptions> compilerOptions;
 	private String language;
 	private FileLocationTaskOption precompiledHeader;
 	private Collection<CompilationPathTaskOption> forceInclude;
-	private Collection<ClangCompilerOptions> compilerOptions;
 
 	public OptionCompilationInputPassOption(CompilationInputPassTaskOption copy) {
 		this.files = ObjectUtils.cloneArrayList(copy.getFiles(), MultiFileLocationTaskOption::clone);

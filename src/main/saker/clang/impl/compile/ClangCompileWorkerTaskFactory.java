@@ -1257,13 +1257,15 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 									try {
 										Path diagpath = Paths.get(file);
 										SakerPath execpath = executioncontext.toUnmirrorPath(diagpath);
-										if (!compilefilepath.equals(diagpath)) {
-											includes.add(execpath);
-										}
-										if (execpath.startsWith(wd)) {
-											file = wd.relativize(execpath).toString();
-										} else {
-											file = execpath.toString();
+										if (execpath != null) {
+											if (!compilefilepath.equals(diagpath)) {
+												includes.add(execpath);
+											}
+											if (execpath.startsWith(wd)) {
+												file = wd.relativize(execpath).toString();
+											} else {
+												file = execpath.toString();
+											}
 										}
 									} catch (Exception e) {
 										SakerLog.error().verbose()
@@ -1281,10 +1283,12 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 								try {
 									Path diagpath = Paths.get(file);
 									SakerPath execpath = executioncontext.toUnmirrorPath(diagpath);
-									if (execpath.startsWith(wd)) {
-										file = wd.relativize(execpath).toString();
-									} else {
-										file = execpath.toString();
+									if (execpath != null) {
+										if (execpath.startsWith(wd)) {
+											file = wd.relativize(execpath).toString();
+										} else {
+											file = execpath.toString();
+										}
 									}
 								} catch (Exception e) {
 									SakerLog.error().verbose()
