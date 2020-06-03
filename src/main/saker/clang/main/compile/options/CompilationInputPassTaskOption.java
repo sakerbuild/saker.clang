@@ -2,6 +2,7 @@ package saker.clang.main.compile.options;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import saker.build.file.path.SakerPath;
@@ -10,6 +11,7 @@ import saker.build.file.path.WildcardPath.ReducedWildcardPath;
 import saker.build.task.TaskContext;
 import saker.build.thirdparty.saker.util.ImmutableUtils;
 import saker.clang.main.options.CompilationPathTaskOption;
+import saker.clang.main.options.SimpleParameterTaskOption;
 import saker.compiler.utils.main.CompilationIdentifierTaskOption;
 import saker.std.api.file.location.ExecutionFileLocation;
 import saker.std.api.file.location.FileCollection;
@@ -28,7 +30,7 @@ public interface CompilationInputPassTaskOption {
 		return null;
 	}
 
-	public default Collection<CompilationPathTaskOption> getIncludeDirectories() {
+	public default List<CompilationPathTaskOption> getIncludeDirectories() {
 		return null;
 	}
 
@@ -44,7 +46,7 @@ public interface CompilationInputPassTaskOption {
 		return null;
 	}
 
-	public default Collection<String> getSimpleParameters() {
+	public default List<SimpleParameterTaskOption> getSimpleParameters() {
 		return null;
 	}
 
@@ -56,7 +58,7 @@ public interface CompilationInputPassTaskOption {
 		return null;
 	}
 
-	public default Collection<CompilationPathTaskOption> getForceInclude() {
+	public default List<CompilationPathTaskOption> getForceInclude() {
 		return null;
 	}
 

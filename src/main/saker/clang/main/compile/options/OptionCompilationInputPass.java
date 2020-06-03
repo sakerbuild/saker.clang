@@ -16,9 +16,11 @@
 package saker.clang.main.compile.options;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 
 import saker.clang.main.options.CompilationPathTaskOption;
+import saker.clang.main.options.SimpleParameterTaskOption;
 import saker.compiler.utils.main.CompilationIdentifierTaskOption;
 import saker.std.main.file.option.FileLocationTaskOption;
 import saker.std.main.file.option.MultiFileLocationTaskOption;
@@ -28,7 +30,7 @@ public interface OptionCompilationInputPass {
 
 	public String getLanguage();
 
-	public Collection<CompilationPathTaskOption> getIncludeDirectories();
+	public List<CompilationPathTaskOption> getIncludeDirectories();
 	
 	public Collection<ClangCompilerOptions> getCompilerOptions();
 
@@ -36,9 +38,9 @@ public interface OptionCompilationInputPass {
 
 	public Map<String, String> getMacroDefinitions();
 
-	public Collection<String> getSimpleParameters();
+	public List<SimpleParameterTaskOption> getSimpleParameters();
 
 	public FileLocationTaskOption getPrecompiledHeader();
 
-	public Collection<CompilationPathTaskOption> getForceInclude();
+	public List<CompilationPathTaskOption> getForceInclude();
 }

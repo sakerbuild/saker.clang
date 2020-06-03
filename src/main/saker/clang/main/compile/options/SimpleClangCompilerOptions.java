@@ -8,6 +8,7 @@ import saker.build.thirdparty.saker.util.ImmutableUtils;
 import saker.build.thirdparty.saker.util.ObjectUtils;
 import saker.build.thirdparty.saker.util.function.Functionals;
 import saker.clang.main.options.CompilationPathTaskOption;
+import saker.clang.main.options.SimpleParameterTaskOption;
 import saker.compiler.utils.main.CompilationIdentifierTaskOption;
 import saker.sdk.support.main.option.SDKDescriptionTaskOption;
 import saker.std.main.file.option.FileLocationTaskOption;
@@ -15,12 +16,12 @@ import saker.std.main.file.option.FileLocationTaskOption;
 public class SimpleClangCompilerOptions implements ClangCompilerOptions {
 	private CompilationIdentifierTaskOption identifier;
 	private List<String> language;
-	private Collection<CompilationPathTaskOption> includeDirectories;
+	private List<CompilationPathTaskOption> includeDirectories;
 	private Map<String, SDKDescriptionTaskOption> sdks;
 	private Map<String, String> macroDefinitions;
-	private Collection<String> simpleParameters;
+	private List<SimpleParameterTaskOption> simpleParameters;
 	private FileLocationTaskOption precompiledHeader;
-	private Collection<CompilationPathTaskOption> forceInclude;
+	private List<CompilationPathTaskOption> forceInclude;
 
 	public SimpleClangCompilerOptions(ClangCompilerOptions copy) {
 		this.identifier = ObjectUtils.clone(copy.getIdentifier(), CompilationIdentifierTaskOption::clone);
@@ -52,7 +53,7 @@ public class SimpleClangCompilerOptions implements ClangCompilerOptions {
 	}
 
 	@Override
-	public Collection<CompilationPathTaskOption> getIncludeDirectories() {
+	public List<CompilationPathTaskOption> getIncludeDirectories() {
 		return includeDirectories;
 	}
 
@@ -67,7 +68,7 @@ public class SimpleClangCompilerOptions implements ClangCompilerOptions {
 	}
 
 	@Override
-	public Collection<String> getSimpleCompilerParameters() {
+	public List<SimpleParameterTaskOption> getSimpleCompilerParameters() {
 		return simpleParameters;
 	}
 
@@ -77,7 +78,7 @@ public class SimpleClangCompilerOptions implements ClangCompilerOptions {
 	}
 
 	@Override
-	public Collection<CompilationPathTaskOption> getForceInclude() {
+	public List<CompilationPathTaskOption> getForceInclude() {
 		return forceInclude;
 	}
 

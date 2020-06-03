@@ -82,6 +82,7 @@ import saker.build.thirdparty.saker.util.io.DataInputUnsyncByteArrayInputStream;
 import saker.build.thirdparty.saker.util.io.SerialUtils;
 import saker.build.thirdparty.saker.util.io.UnsyncByteArrayOutputStream;
 import saker.build.trace.BuildTrace;
+import saker.clang.api.compile.ClangCompilerWorkerTaskOutput;
 import saker.clang.impl.compile.CompilerState.CompiledFileState;
 import saker.clang.impl.compile.CompilerState.PrecompiledHeaderState;
 import saker.clang.impl.option.CompilationPathOption;
@@ -92,7 +93,7 @@ import saker.clang.impl.util.InnerTaskMirrorHandler;
 import saker.clang.main.compile.ClangCompileTaskFactory;
 import saker.compiler.utils.api.CompilationIdentifier;
 import saker.sdk.support.api.SDKDescription;
-import saker.sdk.support.api.SDKPathReference;
+import saker.sdk.support.api.SDKPathCollectionReference;
 import saker.sdk.support.api.SDKReference;
 import saker.sdk.support.api.SDKSupportUtils;
 import saker.sdk.support.api.exc.SDKManagementException;
@@ -105,7 +106,8 @@ import saker.std.api.file.location.LocalFileLocation;
 import saker.std.api.util.SakerStandardUtils;
 import testing.saker.clang.TestFlag;
 
-public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<Object>, Externalizable {
+public class ClangCompileWorkerTaskFactory
+		implements TaskFactory<ClangCompilerWorkerTaskOutput>, Task<ClangCompilerWorkerTaskOutput>, Externalizable {
 	private static final long serialVersionUID = 1L;
 
 	private static final NavigableSet<String> WORKER_TASK_CAPABILITIES = ImmutableUtils
@@ -149,7 +151,7 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 	}
 
 	@Override
-	public Object run(TaskContext taskcontext) throws Exception {
+	public ClangCompilerWorkerTaskOutput run(TaskContext taskcontext) throws Exception {
 		if (saker.build.meta.Versions.VERSION_FULL_COMPOUND >= 8_006) {
 			BuildTrace.classifyTask(BuildTrace.CLASSIFICATION_WORKER);
 		}
@@ -427,7 +429,7 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 						}
 
 						@Override
-						public void visit(SDKPathReference includedir) {
+						public void visit(SDKPathCollectionReference includepath) {
 							//ignore dependency wise
 						}
 					});
@@ -513,7 +515,7 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 	}
 
 	@Override
-	public Task<? extends Object> createTask(ExecutionContext executioncontext) {
+	public Task<? extends ClangCompilerWorkerTaskOutput> createTask(ExecutionContext executioncontext) {
 		return this;
 	}
 
@@ -927,10 +929,6 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 		protected SakerDirectory outputDir;
 
 		private transient InnerTaskMirrorHandler mirrorHandler = new InnerTaskMirrorHandler();
-		private transient NavigableMap<String, Supplier<SDKReference>> referencedSDKCache = new ConcurrentSkipListMap<>(
-				SDKSupportUtils.getSDKNameComparator());
-		private transient NavigableMap<String, Object> sdkCacheLocks = new ConcurrentSkipListMap<>(
-				SDKSupportUtils.getSDKNameComparator());
 
 		private transient ConcurrentHashMap<FileCompilationConfiguration, Object> precompiledHeaderCreationLocks = new ConcurrentHashMap<>();
 		private transient ConcurrentHashMap<FileCompilationConfiguration, Optional<PrecompiledHeaderDependencyInfo>> precompiledHeaderCreationResults = new ConcurrentHashMap<>();
@@ -1020,10 +1018,13 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 				BuildTrace.setDisplayInformation(compilefilepath.getFileName().toString(), null);
 			}
 
+			NavigableMap<String, SDKReference> sdks = SDKSupportUtils
+					.resolveSDKReferences(taskcontext.getExecutionContext().getEnvironment(), sdkDescriptions);
+
 			List<Path> includedirpaths = getIncludePaths(taskutilities, environment,
-					compilationentryproperties.getIncludeDirectories(), true);
+					compilationentryproperties.getIncludeDirectories(), true, sdks);
 			List<Path> forceincludepaths = getIncludePaths(taskutilities, environment,
-					compilationentryproperties.getForceInclude(), false);
+					compilationentryproperties.getForceInclude(), false, sdks);
 
 			FileCompilationConfiguration compilationconfiguration = compilationentry;
 			String outputfilenamebase = compilationconfiguration.getOutFileName();
@@ -1037,7 +1038,7 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 			LocalFileProvider localfp = LocalFileProvider.getInstance();
 			localfp.createDirectories(objoutpath.getParent());
 
-			SDKReference clangsdk = getSDKReferenceForName(environment, ClangUtils.SDK_NAME_CLANG);
+			SDKReference clangsdk = SDKSupportUtils.requireSDK(sdks, ClangUtils.SDK_NAME_CLANG);
 			String executable = ClangUtils.getClangExecutable(clangsdk);
 
 			String pchoutfilename = compilationentry.getPrecompiledHeaderOutFileName();
@@ -1080,7 +1081,8 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 								commands.add(executable);
 								//compile only
 								commands.add("-c");
-								commands.addAll(pchproperties.getSimpleParameters());
+								ClangUtils.evaluateSimpleParameters(commands, pchproperties.getSimpleParameters(),
+										sdks);
 								addLanguageHeaderCommandLineOption(pchproperties.getLanguage(), commands);
 								commands.add(pchcompilefilepath.toString());
 								commands.add("-o");
@@ -1146,7 +1148,7 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 			commands.add(executable);
 			//compile only
 			commands.add("-c");
-			commands.addAll(compilationentryproperties.getSimpleParameters());
+			ClangUtils.evaluateSimpleParameters(commands, compilationentryproperties.getSimpleParameters(), sdks);
 			addLanguageCommandLineOption(compilationentryproperties.getLanguage(), commands);
 			commands.add(compilefilepath.toString());
 			commands.add("-o");
@@ -1580,23 +1582,23 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 		}
 
 		private List<Path> getIncludePaths(TaskExecutionUtilities taskutilities, SakerEnvironment environment,
-				Collection<CompilationPathOption> includeoptions, boolean directories) {
+				Collection<CompilationPathOption> includeoptions, boolean directories,
+				Map<String, ? extends SDKReference> sdks) {
 			if (ObjectUtils.isNullOrEmpty(includeoptions)) {
 				return Collections.emptyList();
 			}
 			List<Path> includepaths = new ArrayList<>();
 			if (!ObjectUtils.isNullOrEmpty(includeoptions)) {
 				for (CompilationPathOption incopt : includeoptions) {
-					Path incpath = getIncludePath(taskutilities, environment, incopt, directories);
-					includepaths.add(incpath);
+					getIncludePath(taskutilities, environment, incopt, directories, includepaths, sdks);
 				}
 			}
 			return includepaths;
 		}
 
-		private Path getIncludePath(TaskExecutionUtilities taskutilities, SakerEnvironment environment,
-				CompilationPathOption includediroption, boolean directories) {
-			Path[] includepath = { null };
+		private void getIncludePath(TaskExecutionUtilities taskutilities, SakerEnvironment environment,
+				CompilationPathOption includediroption, boolean directories, List<Path> includepaths,
+				Map<String, ? extends SDKReference> sdks) {
 			includediroption.accept(new CompilationPathOption.Visitor() {
 				@Override
 				public void visit(FileCompilationPathOption includedir) {
@@ -1605,12 +1607,14 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 						public void visit(ExecutionFileLocation loc) {
 							SakerPath path = loc.getPath();
 							try {
+								Path incpath;
 								if (directories) {
-									includepath[0] = mirrorHandler.mirrorDirectory(taskutilities, path);
+									incpath = mirrorHandler.mirrorDirectory(taskutilities, path);
 								} else {
 									//XXX handle mirrored force include contents?
-									includepath[0] = mirrorHandler.mirrorFile(taskutilities, path).getPath();
+									incpath = mirrorHandler.mirrorFile(taskutilities, path).getPath();
 								}
+								includepaths.add(incpath);
 							} catch (FileMirroringUnavailableException | IOException e) {
 								throw ObjectUtils.sneakyThrow(e);
 							}
@@ -1625,62 +1629,25 @@ public class ClangCompileWorkerTaskFactory implements TaskFactory<Object>, Task<
 				}
 
 				@Override
-				public void visit(SDKPathReference includedir) {
+				public void visit(SDKPathCollectionReference includedir) {
 					//XXX duplicated code with linker worker
-					String sdkname = includedir.getSDKName();
-					if (ObjectUtils.isNullOrEmpty(sdkname)) {
-						throw new SDKPathNotFoundException("Include directory returned empty sdk name: " + includedir);
-					}
-					SDKReference sdkref = getSDKReferenceForName(environment, sdkname);
-					if (sdkref == null) {
-						throw new SDKPathNotFoundException("SDK configuration not found for name: " + sdkname
-								+ " required by include directory: " + includedir);
-					}
 					try {
-						SakerPath sdkdirpath = includedir.getPath(sdkref);
-						if (sdkdirpath == null) {
-							throw new SDKPathNotFoundException("No SDK include directory found for: " + includedir
-									+ " in SDK: " + sdkname + " as " + sdkref);
+						Collection<SakerPath> paths = includedir.getValue(sdks);
+						if (paths == null) {
+							throw new SDKPathNotFoundException(
+									"No SDK include directory path found for: " + includedir);
 						}
-						includepath[0] = LocalFileProvider.toRealPath(sdkdirpath);
+						for (SakerPath sdkdirpath : paths) {
+							includepaths.add(LocalFileProvider.toRealPath(sdkdirpath));
+						}
+					} catch (SDKManagementException e) {
+						throw e;
 					} catch (Exception e) {
-						throw new SDKPathNotFoundException("Failed to retrieve SDK include directory for: " + includedir
-								+ " in SDK: " + sdkname + " as " + sdkref, e);
+						throw new SDKPathNotFoundException(
+								"Failed to retrieve include directory path from SDKs: " + includedir);
 					}
 				}
 			});
-			return includepath[0];
-		}
-
-		//XXX somewhat duplicated with linker worker factory
-		private SDKReference getSDKReferenceForName(SakerEnvironment environment, String sdkname) {
-			Supplier<SDKReference> sdkref = referencedSDKCache.get(sdkname);
-			if (sdkref != null) {
-				return sdkref.get();
-			}
-			synchronized (sdkCacheLocks.computeIfAbsent(sdkname, Functionals.objectComputer())) {
-				sdkref = referencedSDKCache.get(sdkname);
-				if (sdkref != null) {
-					return sdkref.get();
-				}
-				SDKDescription desc = sdkDescriptions.get(sdkname);
-				if (desc == null) {
-					sdkref = () -> {
-						throw new SDKNotFoundException("SDK not found for name: " + sdkname);
-					};
-				} else {
-					try {
-						SDKReference refresult = SDKSupportUtils.resolveSDKReference(environment, desc);
-						sdkref = Functionals.valSupplier(refresult);
-					} catch (Exception e) {
-						sdkref = () -> {
-							throw new SDKManagementException("Failed to resolve SDK: " + sdkname + " as " + desc, e);
-						};
-					}
-				}
-				referencedSDKCache.put(sdkname, sdkref);
-			}
-			return sdkref.get();
 		}
 	}
 

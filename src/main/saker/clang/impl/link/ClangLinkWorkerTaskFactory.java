@@ -45,12 +45,13 @@ import saker.build.trace.BuildTrace;
 import saker.clang.api.link.ClangLinkerWorkerTaskOutput;
 import saker.clang.impl.option.CompilationPathOption;
 import saker.clang.impl.option.FileCompilationPathOption;
+import saker.clang.impl.option.SimpleParameterOption;
 import saker.clang.impl.util.ClangUtils;
 import saker.clang.impl.util.CollectingProcessIOConsumer;
 import saker.clang.main.link.ClangLinkTaskFactory;
 import saker.compiler.utils.api.CompilationIdentifier;
 import saker.sdk.support.api.SDKDescription;
-import saker.sdk.support.api.SDKPathReference;
+import saker.sdk.support.api.SDKPathCollectionReference;
 import saker.sdk.support.api.SDKReference;
 import saker.sdk.support.api.SDKSupportUtils;
 import saker.sdk.support.api.exc.SDKManagementException;
@@ -62,7 +63,8 @@ import saker.std.api.file.location.FileLocationVisitor;
 import saker.std.api.file.location.LocalFileLocation;
 import saker.std.api.util.SakerStandardUtils;
 
-public class ClangLinkWorkerTaskFactory implements TaskFactory<Object>, Task<Object>, Externalizable {
+public class ClangLinkWorkerTaskFactory
+		implements TaskFactory<ClangLinkerWorkerTaskOutput>, Task<ClangLinkerWorkerTaskOutput>, Externalizable {
 	private static final long serialVersionUID = 1L;
 
 	private static final NavigableSet<String> WORKER_TASK_CAPABILITIES = ImmutableUtils
@@ -71,7 +73,7 @@ public class ClangLinkWorkerTaskFactory implements TaskFactory<Object>, Task<Obj
 	private Set<FileLocation> inputs;
 	private Set<CompilationPathOption> libraryPath;
 	private NavigableMap<String, SDKDescription> sdkDescriptions;
-	private List<String> simpleParameters;
+	private List<SimpleParameterOption> simpleParameters;
 
 	public void setInputs(Set<FileLocation> inputs) {
 		this.inputs = inputs;
@@ -89,7 +91,7 @@ public class ClangLinkWorkerTaskFactory implements TaskFactory<Object>, Task<Obj
 		}
 	}
 
-	public void setSimpleParameters(List<String> simpleParameters) {
+	public void setSimpleParameters(List<SimpleParameterOption> simpleParameters) {
 		if (simpleParameters == null) {
 			this.simpleParameters = Collections.emptyList();
 		} else {
@@ -98,7 +100,7 @@ public class ClangLinkWorkerTaskFactory implements TaskFactory<Object>, Task<Obj
 	}
 
 	@Override
-	public Object run(TaskContext taskcontext) throws Exception {
+	public ClangLinkerWorkerTaskOutput run(TaskContext taskcontext) throws Exception {
 		if (saker.build.meta.Versions.VERSION_FULL_COMPOUND >= 8_006) {
 			BuildTrace.classifyTask(BuildTrace.CLASSIFICATION_WORKER);
 		}
@@ -164,7 +166,7 @@ public class ClangLinkWorkerTaskFactory implements TaskFactory<Object>, Task<Obj
 	}
 
 	@Override
-	public Task<? extends Object> createTask(ExecutionContext executioncontext) {
+	public Task<? extends ClangLinkerWorkerTaskOutput> createTask(ExecutionContext executioncontext) {
 		return this;
 	}
 
@@ -313,7 +315,7 @@ public class ClangLinkWorkerTaskFactory implements TaskFactory<Object>, Task<Obj
 		private Set<FileLocation> inputs;
 		private Set<CompilationPathOption> libraryPath;
 		private NavigableMap<String, SDKDescription> sdkDescriptions;
-		private List<String> simpleParameters;
+		private List<SimpleParameterOption> simpleParameters;
 		private SakerPath outDirectoryPath;
 		private String passIdentifier;
 
@@ -325,7 +327,7 @@ public class ClangLinkWorkerTaskFactory implements TaskFactory<Object>, Task<Obj
 
 		public LinkerInnerTaskFactory(TaskExecutionEnvironmentSelector environmentSelector, Set<FileLocation> inputs,
 				Set<CompilationPathOption> libraryPath, NavigableMap<String, SDKDescription> sdkDescriptions,
-				List<String> simpleParameters, SakerPath outdirpath, String passid) {
+				List<SimpleParameterOption> simpleParameters, SakerPath outdirpath, String passid) {
 			this.environmentSelector = environmentSelector;
 			this.inputs = inputs;
 			this.libraryPath = libraryPath;
@@ -361,8 +363,8 @@ public class ClangLinkWorkerTaskFactory implements TaskFactory<Object>, Task<Obj
 				});
 			}
 
-			NavigableMap<String, Supplier<SDKReference>> referencedsdks = new TreeMap<>(
-					SDKSupportUtils.getSDKNameComparator());
+			NavigableMap<String, SDKReference> sdks = SDKSupportUtils
+					.resolveSDKReferences(taskcontext.getExecutionContext().getEnvironment(), sdkDescriptions);
 
 			SakerEnvironment environment = taskcontext.getExecutionContext().getEnvironment();
 			if (!ObjectUtils.isNullOrEmpty(this.libraryPath)) {
@@ -401,35 +403,41 @@ public class ClangLinkWorkerTaskFactory implements TaskFactory<Object>, Task<Obj
 						}
 
 						@Override
-						public void visit(SDKPathReference libpath) {
+						public void visit(SDKPathCollectionReference libpath) {
 							//XXX duplicated code with compiler worker
-							String sdkname = libpath.getSDKName();
-							if (ObjectUtils.isNullOrEmpty(sdkname)) {
-								throw new NullPointerException("Library path returned empty sdk name: " + libpath);
-							}
-							SDKReference sdkref = getSDKReferenceForName(environment, referencedsdks, sdkname);
-							if (sdkref == null) {
-								throw new SDKNotFoundException("SDK configuration not found for name: " + sdkname
-										+ " required by library path: " + libpath);
-							}
 							try {
-								SakerPath sdkdirpath = libpath.getPath(sdkref);
-								if (sdkdirpath == null) {
-									throw new SDKPathNotFoundException("No SDK library path found for: " + libpath
-											+ " in SDK: " + sdkname + " as " + sdkref);
+								Collection<SakerPath> paths = libpath.getValue(sdks);
+								if (paths == null) {
+									throw new SDKPathNotFoundException("No SDK library path found for: " + libpath);
 								}
-								libpaths.add(LocalFileProvider.toRealPath(sdkdirpath));
+								for (SakerPath sdkdirpath : paths) {
+									libpaths.add(LocalFileProvider.toRealPath(sdkdirpath));
+								}
+							} catch (SDKManagementException e) {
+								throw e;
 							} catch (Exception e) {
-								throw new SDKPathNotFoundException("Failed to retrieve SDK library path for: " + libpath
-										+ " in SDK: " + sdkname + " as " + sdkref, e);
+								throw new SDKPathNotFoundException(
+										"Failed to retrieve library path from SDKs: " + libpath);
 							}
 						}
 					});
 				}
 			}
 
+			SDKReference clangsdk = SDKSupportUtils.requireSDK(sdks, ClangUtils.SDK_NAME_CLANG);
+			String executable = ClangUtils.getClangExecutable(clangsdk);
+
+			List<String> commands = new ArrayList<>();
+			commands.add(executable);
+			//input file paths added first as the ordering of arguments matter somewhy
+			//we've encountered errors when the input files were added last
+			for (Path inputpath : inputfilepaths) {
+				commands.add(inputpath.toString());
+			}
+			ClangUtils.evaluateSimpleParameters(commands, simpleParameters, sdks);
+
 			String outputfilename;
-			if (simpleParameters.contains("-shared")) {
+			if (commands.contains("-shared")) {
 				//XXX find some better output file name for shared libraries
 				//    mapLibraryName is NOT okay as it is incorrect when cross compiling
 				outputfilename = passIdentifier;
@@ -444,18 +452,6 @@ public class ClangLinkWorkerTaskFactory implements TaskFactory<Object>, Task<Obj
 
 			Path outputmirrorpath = taskcontext.getExecutionContext().toMirrorPath(outputexecpath);
 			LocalFileProvider.getInstance().createDirectories(outputmirrorpath.getParent());
-
-			SDKReference clangsdk = getSDKReferenceForName(environment, referencedsdks, ClangUtils.SDK_NAME_CLANG);
-			String executable = ClangUtils.getClangExecutable(clangsdk);
-
-			List<String> commands = new ArrayList<>();
-			commands.add(executable);
-			//input file paths added first as the ordering of arguments matter somewhy
-			//we've encountered errors when the input files were added last
-			for (Path inputpath : inputfilepaths) {
-				commands.add(inputpath.toString());
-			}
-			commands.addAll(simpleParameters);
 
 			for (Path lpath : libpaths) {
 				commands.add("-L");

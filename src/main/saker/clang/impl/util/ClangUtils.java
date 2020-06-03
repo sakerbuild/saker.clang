@@ -1,18 +1,25 @@
 package saker.clang.impl.util;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
 import saker.build.file.path.SakerPath;
 import saker.build.runtime.environment.SakerEnvironment;
 import saker.build.thirdparty.saker.util.ImmutableUtils;
+import saker.build.thirdparty.saker.util.ObjectUtils;
 import saker.build.thirdparty.saker.util.io.IOUtils;
+import saker.clang.impl.option.SimpleParameterOption;
 import saker.clang.impl.sdk.DefaultClangSDKDescription;
 import saker.process.api.ProcessIOConsumer;
 import saker.process.api.SakerProcess;
 import saker.process.api.SakerProcessBuilder;
 import saker.sdk.support.api.SDKDescription;
+import saker.sdk.support.api.SDKPathCollectionReference;
+import saker.sdk.support.api.SDKPathReference;
+import saker.sdk.support.api.SDKPropertyCollectionReference;
+import saker.sdk.support.api.SDKPropertyReference;
 import saker.sdk.support.api.SDKReference;
 import saker.sdk.support.api.exc.SDKPathNotFoundException;
 import saker.std.api.file.location.FileLocation;
@@ -117,4 +124,74 @@ public class ClangUtils {
 		return SakerStandardUtils.getFileLocationFileName(fl);
 	}
 
+	public static void evaluateSimpleParameters(List<String> result, List<? extends SimpleParameterOption> params,
+			Map<String, ? extends SDKReference> sdks) throws Exception {
+		if (params == null) {
+			return;
+		}
+		SimpleParameterOption.Visitor visitor = new SimpleParameterOption.Visitor() {
+			@Override
+			public void visit(String value) {
+				result.add(value);
+			}
+
+			@Override
+			public void visit(SDKPathCollectionReference value) {
+				try {
+					Collection<SakerPath> paths = value.getValue(sdks);
+					if (paths == null) {
+						throw new SDKPathNotFoundException("No SDK paths found for: " + value);
+					}
+					for (SakerPath p : paths) {
+						result.add(p.toString());
+					}
+				} catch (Exception e) {
+					throw ObjectUtils.sneakyThrow(e);
+				}
+			}
+
+			@Override
+			public void visit(SDKPropertyCollectionReference value) {
+				try {
+					Collection<String> props = value.getValue(sdks);
+					if (props == null) {
+						throw new SDKPathNotFoundException("No SDK paths found for: " + value);
+					}
+					result.addAll(props);
+				} catch (Exception e) {
+					throw ObjectUtils.sneakyThrow(e);
+				}
+			}
+
+			@Override
+			public void visit(SDKPathReference value) {
+				try {
+					SakerPath p = value.getValue(sdks);
+					if (p == null) {
+						throw new SDKPathNotFoundException("No SDK paths found for: " + value);
+					}
+					result.add(p.toString());
+				} catch (Exception e) {
+					throw ObjectUtils.sneakyThrow(e);
+				}
+			}
+
+			@Override
+			public void visit(SDKPropertyReference value) {
+				try {
+					String prop = value.getValue(sdks);
+					if (prop == null) {
+						throw new SDKPathNotFoundException("No SDK paths found for: " + value);
+					}
+					result.add(prop);
+				} catch (Exception e) {
+					throw ObjectUtils.sneakyThrow(e);
+				}
+			}
+
+		};
+		for (SimpleParameterOption p : params) {
+			p.accept(visitor);
+		}
+	}
 }

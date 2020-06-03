@@ -1,9 +1,10 @@
 package saker.clang.main.link.options;
 
-import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 
 import saker.clang.main.options.CompilationPathTaskOption;
+import saker.clang.main.options.SimpleParameterTaskOption;
 import saker.compiler.utils.main.CompilationIdentifierTaskOption;
 import saker.sdk.support.main.option.SDKDescriptionTaskOption;
 
@@ -18,11 +19,11 @@ public interface ClangLinkerOptions {
 		return null;
 	}
 
-	public default Collection<LinkerInputPassTaskOption> getLinkerInput() {
+	public default List<LinkerInputPassTaskOption> getLinkerInput() {
 		return null;
 	}
 
-	public default Collection<CompilationPathTaskOption> getLibraryPath() {
+	public default List<CompilationPathTaskOption> getLibraryPath() {
 		return null;
 	}
 
@@ -30,7 +31,7 @@ public interface ClangLinkerOptions {
 		return null;
 	}
 
-	public default Collection<String> getSimpleLinkerParameters() {
+	public default List<SimpleParameterTaskOption> getSimpleLinkerParameters() {
 		return null;
 	}
 

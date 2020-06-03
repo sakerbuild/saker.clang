@@ -1,9 +1,11 @@
 package saker.clang.main.compile.options;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 
 import saker.clang.main.options.CompilationPathTaskOption;
+import saker.clang.main.options.SimpleParameterTaskOption;
 import saker.compiler.utils.main.CompilationIdentifierTaskOption;
 import saker.sdk.support.main.option.SDKDescriptionTaskOption;
 import saker.std.main.file.option.FileLocationTaskOption;
@@ -23,7 +25,7 @@ public interface ClangCompilerOptions {
 		return null;
 	}
 
-	public default Collection<CompilationPathTaskOption> getIncludeDirectories() {
+	public default List<CompilationPathTaskOption> getIncludeDirectories() {
 		return null;
 	}
 
@@ -31,7 +33,7 @@ public interface ClangCompilerOptions {
 		return null;
 	}
 
-	public default Collection<String> getSimpleCompilerParameters() {
+	public default List<SimpleParameterTaskOption> getSimpleCompilerParameters() {
 		return null;
 	}
 
@@ -43,7 +45,7 @@ public interface ClangCompilerOptions {
 		return null;
 	}
 
-	public default Collection<CompilationPathTaskOption> getForceInclude() {
+	public default List<CompilationPathTaskOption> getForceInclude() {
 		return null;
 	}
 

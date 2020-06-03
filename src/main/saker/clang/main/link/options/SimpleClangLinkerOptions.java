@@ -1,20 +1,21 @@
 package saker.clang.main.link.options;
 
-import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 
 import saker.build.thirdparty.saker.util.ObjectUtils;
 import saker.build.thirdparty.saker.util.function.Functionals;
 import saker.clang.main.options.CompilationPathTaskOption;
+import saker.clang.main.options.SimpleParameterTaskOption;
 import saker.compiler.utils.main.CompilationIdentifierTaskOption;
 import saker.sdk.support.main.option.SDKDescriptionTaskOption;
 
 public class SimpleClangLinkerOptions implements ClangLinkerOptions {
 	private CompilationIdentifierTaskOption identifier;
-	private Collection<LinkerInputPassTaskOption> input;
-	private Collection<CompilationPathTaskOption> libraryPath;
+	private List<LinkerInputPassTaskOption> input;
+	private List<CompilationPathTaskOption> libraryPath;
 	private Map<String, SDKDescriptionTaskOption> sdks;
-	private Collection<String> simpleParameters;
+	private List<SimpleParameterTaskOption> simpleParameters;
 
 	public SimpleClangLinkerOptions() {
 	}
@@ -39,12 +40,12 @@ public class SimpleClangLinkerOptions implements ClangLinkerOptions {
 	}
 
 	@Override
-	public Collection<LinkerInputPassTaskOption> getLinkerInput() {
+	public List<LinkerInputPassTaskOption> getLinkerInput() {
 		return input;
 	}
 
 	@Override
-	public Collection<CompilationPathTaskOption> getLibraryPath() {
+	public List<CompilationPathTaskOption> getLibraryPath() {
 		return libraryPath;
 	}
 
@@ -54,7 +55,7 @@ public class SimpleClangLinkerOptions implements ClangLinkerOptions {
 	}
 
 	@Override
-	public Collection<String> getSimpleLinkerParameters() {
+	public List<SimpleParameterTaskOption> getSimpleLinkerParameters() {
 		return simpleParameters;
 	}
 

@@ -1,12 +1,15 @@
 package saker.clang.main.compile.options;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 
 import saker.build.task.TaskContext;
 import saker.build.thirdparty.saker.util.ImmutableUtils;
 import saker.build.thirdparty.saker.util.ObjectUtils;
+import saker.clang.impl.option.SimpleParameterOption;
 import saker.clang.main.options.CompilationPathTaskOption;
+import saker.clang.main.options.SimpleParameterTaskOption;
 import saker.compiler.utils.main.CompilationIdentifierTaskOption;
 import saker.std.main.file.option.FileLocationTaskOption;
 import saker.std.main.file.option.MultiFileLocationTaskOption;
@@ -14,14 +17,14 @@ import saker.std.main.file.option.MultiFileLocationTaskOption;
 public class OptionCompilationInputPassOption
 		implements OptionCompilationInputPass, CompilationInputPassOption, CompilationInputPassTaskOption {
 	private Collection<MultiFileLocationTaskOption> files;
-	private Collection<CompilationPathTaskOption> includeDirectories;
+	private List<CompilationPathTaskOption> includeDirectories;
 	private CompilationIdentifierTaskOption subIdentifier;
 	private Map<String, String> macroDefinitions;
-	private Collection<String> simpleParameters;
+	private List<SimpleParameterTaskOption> simpleParameters;
 	private Collection<ClangCompilerOptions> compilerOptions;
 	private String language;
 	private FileLocationTaskOption precompiledHeader;
-	private Collection<CompilationPathTaskOption> forceInclude;
+	private List<CompilationPathTaskOption> forceInclude;
 
 	public OptionCompilationInputPassOption(CompilationInputPassTaskOption copy) {
 		this.files = ObjectUtils.cloneArrayList(copy.getFiles(), MultiFileLocationTaskOption::clone);
@@ -57,7 +60,7 @@ public class OptionCompilationInputPassOption
 	}
 
 	@Override
-	public Collection<CompilationPathTaskOption> getIncludeDirectories() {
+	public List<CompilationPathTaskOption> getIncludeDirectories() {
 		return includeDirectories;
 	}
 
@@ -77,7 +80,7 @@ public class OptionCompilationInputPassOption
 	}
 
 	@Override
-	public Collection<String> getSimpleParameters() {
+	public List<SimpleParameterTaskOption> getSimpleParameters() {
 		return simpleParameters;
 	}
 
@@ -87,7 +90,7 @@ public class OptionCompilationInputPassOption
 	}
 
 	@Override
-	public Collection<CompilationPathTaskOption> getForceInclude() {
+	public List<CompilationPathTaskOption> getForceInclude() {
 		return forceInclude;
 	}
 

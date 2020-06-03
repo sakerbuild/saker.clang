@@ -31,13 +31,16 @@ import saker.clang.impl.compile.ClangCompileWorkerTaskIdentifier;
 import saker.clang.impl.compile.FileCompilationConfiguration;
 import saker.clang.impl.compile.FileCompilationProperties;
 import saker.clang.impl.option.CompilationPathOption;
+import saker.clang.impl.option.SimpleParameterOption;
 import saker.clang.impl.util.ClangUtils;
 import saker.clang.main.compile.options.ClangCompilerOptions;
 import saker.clang.main.compile.options.CompilationInputPassOption;
 import saker.clang.main.compile.options.CompilationInputPassTaskOption;
 import saker.clang.main.compile.options.FileCompilationInputPass;
 import saker.clang.main.compile.options.OptionCompilationInputPass;
+import saker.clang.main.link.ClangLinkTaskFactory;
 import saker.clang.main.options.CompilationPathTaskOption;
+import saker.clang.main.options.SimpleParameterTaskOption;
 import saker.compiler.utils.api.CompilationIdentifier;
 import saker.compiler.utils.api.CompilerUtils;
 import saker.compiler.utils.main.CompilationIdentifierTaskOption;
@@ -165,8 +168,9 @@ public class ClangCompileTaskFactory extends FrontendTaskFactory<Object> {
 									}
 
 									Map<String, String> macrodefinitions = input.getMacroDefinitions();
-									List<String> simpleparamoption = ImmutableUtils
-											.makeImmutableList(input.getSimpleParameters());
+									List<SimpleParameterOption> simpleparamoption = new ArrayList<>();
+									ClangLinkTaskFactory.addSimpleParameters(simpleparamoption,
+											input.getSimpleParameters());
 									String passlang = input.getLanguage();
 									FileLocation pchfilelocation = TaskOptionUtils
 											.toFileLocation(input.getPrecompiledHeader(), taskcontext);
@@ -258,7 +262,8 @@ public class ClangCompileTaskFactory extends FrontendTaskFactory<Object> {
 										calculatedincludediroptions, options.getForceInclude()));
 								mergeSDKDescriptionOptions(taskcontext, sdkdescriptions, options.getSDKs());
 								mergeMacroDefinitions(compilationproperties, options.getMacroDefinitions());
-								mergeSimpleParameters(compilationproperties, options.getSimpleCompilerParameters());
+								mergeSimpleParameterOptions(compilationproperties,
+										options.getSimpleCompilerParameters());
 
 								mergePrecompiledHeader(configholder,
 										TaskOptionUtils.toFileLocation(options.getPrecompiledHeader(), taskcontext));
@@ -351,12 +356,22 @@ public class ClangCompileTaskFactory extends FrontendTaskFactory<Object> {
 		}
 	}
 
-	private static void mergeSimpleParameters(FileCompilationProperties config, Collection<String> simpleparams) {
+	private static void mergeSimpleParameterOptions(FileCompilationProperties config,
+			Collection<SimpleParameterTaskOption> simpleparams) {
 		if (ObjectUtils.isNullOrEmpty(simpleparams)) {
 			return;
 		}
-		//do not deduplicate
-		List<String> result = ObjectUtils.newArrayList(config.getSimpleParameters());
+		List<SimpleParameterOption> result = ObjectUtils.newArrayList(config.getSimpleParameters());
+		ClangLinkTaskFactory.addSimpleParameters(result, simpleparams);
+		config.setSimpleParameters(result);
+	}
+
+	private static void mergeSimpleParameters(FileCompilationProperties config,
+			Collection<SimpleParameterOption> simpleparams) {
+		if (ObjectUtils.isNullOrEmpty(simpleparams)) {
+			return;
+		}
+		List<SimpleParameterOption> result = ObjectUtils.newArrayList(config.getSimpleParameters());
 		result.addAll(simpleparams);
 		config.setSimpleParameters(result);
 	}

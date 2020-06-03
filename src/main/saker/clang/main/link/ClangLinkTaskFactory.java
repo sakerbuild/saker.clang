@@ -26,6 +26,7 @@ import saker.clang.api.compile.ClangCompilerWorkerTaskOutput;
 import saker.clang.impl.link.ClangLinkWorkerTaskFactory;
 import saker.clang.impl.link.ClangLinkWorkerTaskIdentifier;
 import saker.clang.impl.option.CompilationPathOption;
+import saker.clang.impl.option.SimpleParameterOption;
 import saker.clang.impl.util.ClangUtils;
 import saker.clang.main.compile.ClangCompileTaskFactory;
 import saker.clang.main.link.options.ClangLinkerOptions;
@@ -34,6 +35,7 @@ import saker.clang.main.link.options.FileLinkerInputPass;
 import saker.clang.main.link.options.LinkerInputPassOption;
 import saker.clang.main.link.options.LinkerInputPassTaskOption;
 import saker.clang.main.options.CompilationPathTaskOption;
+import saker.clang.main.options.SimpleParameterTaskOption;
 import saker.compiler.utils.api.CompilationIdentifier;
 import saker.compiler.utils.api.CompilerUtils;
 import saker.compiler.utils.main.CompilationIdentifierTaskOption;
@@ -66,7 +68,7 @@ public class ClangLinkTaskFactory extends FrontendTaskFactory<Object> {
 			public Map<String, SDKDescriptionTaskOption> sdksOption;
 
 			@SakerInput(value = "SimpleParameters")
-			public Collection<String> simpleParametersOption;
+			public Collection<SimpleParameterTaskOption> simpleParametersOption;
 
 			@SakerInput(value = { "LinkerOptions" })
 			public Collection<ClangLinkerOptions> linkerOptionsOption;
@@ -82,7 +84,9 @@ public class ClangLinkTaskFactory extends FrontendTaskFactory<Object> {
 				Collection<CompilationPathTaskOption> libpathoptions = new ArrayList<>();
 				Map<String, SDKDescriptionTaskOption> sdkoptions = new TreeMap<>(
 						SDKSupportUtils.getSDKNameComparator());
-				List<String> simpleparameters = ObjectUtils.newArrayList(this.simpleParametersOption);
+				List<SimpleParameterOption> simpleparams = new ArrayList<>();
+				Collection<SimpleParameterTaskOption> simpleparamsoption = this.simpleParametersOption;
+				addSimpleParameters(simpleparams, simpleparamsoption);
 				CompilationIdentifierTaskOption identifieropt = ObjectUtils.clone(this.identifierOption,
 						CompilationIdentifierTaskOption::clone);
 
@@ -184,7 +188,7 @@ public class ClangLinkTaskFactory extends FrontendTaskFactory<Object> {
 							}
 							ClangCompileTaskFactory.mergeSDKDescriptionOptions(taskcontext, nullablesdkdescriptions,
 									options.getSDKs());
-							ObjectUtils.addAll(simpleparameters, options.getSimpleLinkerParameters());
+							addSimpleParameters(simpleparams, options.getSimpleLinkerParameters());
 							Collection<LinkerInputPassTaskOption> optinput = options.getLinkerInput();
 							if (!ObjectUtils.isNullOrEmpty(optinput)) {
 								for (LinkerInputPassTaskOption opttaskin : optinput) {
@@ -224,7 +228,7 @@ public class ClangLinkTaskFactory extends FrontendTaskFactory<Object> {
 
 				ClangLinkWorkerTaskFactory worker = new ClangLinkWorkerTaskFactory();
 				worker.setInputs(inputfiles);
-				worker.setSimpleParameters(simpleparameters);
+				worker.setSimpleParameters(simpleparams);
 				worker.setLibraryPath(librarypath);
 				worker.setSdkDescriptions(sdkdescriptions);
 				taskcontext.startTask(workertaskid, worker, null);
@@ -283,4 +287,16 @@ public class ClangLinkTaskFactory extends FrontendTaskFactory<Object> {
 		});
 	}
 
+	public static void addSimpleParameters(List<SimpleParameterOption> simpleparams,
+			Collection<SimpleParameterTaskOption> simpleparamsoption) {
+		if (simpleparamsoption == null) {
+			return;
+		}
+		for (SimpleParameterTaskOption sp : simpleparamsoption) {
+			if (sp == null) {
+				continue;
+			}
+			simpleparams.add(sp.getParameter());
+		}
+	}
 }

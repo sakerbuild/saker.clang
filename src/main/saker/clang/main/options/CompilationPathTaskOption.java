@@ -28,6 +28,7 @@ import saker.build.thirdparty.saker.util.ImmutableUtils;
 import saker.clang.impl.option.CompilationPathOption;
 import saker.clang.impl.util.option.FileCompilationPathOptionImpl;
 import saker.clang.impl.util.option.SDKPathReferenceCompilationPathOption;
+import saker.sdk.support.api.SDKPathCollectionReference;
 import saker.sdk.support.api.SDKPathReference;
 import saker.std.api.file.location.ExecutionFileLocation;
 import saker.std.api.file.location.FileCollection;
@@ -77,6 +78,10 @@ public interface CompilationPathTaskOption {
 	}
 
 	public static CompilationPathTaskOption valueOf(SDKPathReference pathreference) {
+		return valueOf(SDKPathCollectionReference.valueOf(pathreference));
+	}
+
+	public static CompilationPathTaskOption valueOf(SDKPathCollectionReference pathreference) {
 		return valueOf(new SDKPathReferenceCompilationPathOption(pathreference));
 	}
 }

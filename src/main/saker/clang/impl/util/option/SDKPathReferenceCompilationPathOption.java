@@ -20,13 +20,15 @@ import java.io.IOException;
 import java.io.ObjectInput;
 import java.io.ObjectOutput;
 
+import saker.build.thirdparty.saker.util.io.SerialUtils;
 import saker.clang.impl.option.CompilationPathOption;
+import saker.sdk.support.api.SDKPathCollectionReference;
 import saker.sdk.support.api.SDKPathReference;
 
 public class SDKPathReferenceCompilationPathOption implements CompilationPathOption, Externalizable {
 	private static final long serialVersionUID = 1L;
 
-	private SDKPathReference pathReference;
+	private SDKPathCollectionReference pathReference;
 
 	/**
 	 * For {@link Externalizable}.
@@ -34,12 +36,12 @@ public class SDKPathReferenceCompilationPathOption implements CompilationPathOpt
 	public SDKPathReferenceCompilationPathOption() {
 	}
 
-	public SDKPathReferenceCompilationPathOption(SDKPathReference pathReference) {
+	public SDKPathReferenceCompilationPathOption(SDKPathCollectionReference pathReference) {
 		this.pathReference = pathReference;
 	}
 
 	public SDKPathReferenceCompilationPathOption(String sdkname, String pathidentifier) {
-		this.pathReference = SDKPathReference.create(sdkname, pathidentifier);
+		this(SDKPathCollectionReference.valueOf(SDKPathReference.create(sdkname, pathidentifier)));
 	}
 
 	@Override
@@ -54,7 +56,7 @@ public class SDKPathReferenceCompilationPathOption implements CompilationPathOpt
 
 	@Override
 	public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
-		pathReference = (SDKPathReference) in.readObject();
+		pathReference = SerialUtils.readExternalObject(in);
 	}
 
 	@Override

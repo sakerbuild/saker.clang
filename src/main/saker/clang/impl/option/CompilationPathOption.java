@@ -15,7 +15,7 @@
  */
 package saker.clang.impl.option;
 
-import saker.sdk.support.api.SDKPathReference;
+import saker.sdk.support.api.SDKPathCollectionReference;
 
 public interface CompilationPathOption {
 	public void accept(Visitor visitor);
@@ -31,7 +31,8 @@ public interface CompilationPathOption {
 			throw new UnsupportedOperationException("Unsupported path: " + includepath);
 		}
 
-		public default void visit(SDKPathReference includepath) {
+
+		public default void visit(SDKPathCollectionReference includepath) {
 			throw new UnsupportedOperationException("Unsupported path: " + includepath);
 		}
 	}

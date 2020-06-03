@@ -13,6 +13,7 @@ import saker.build.thirdparty.saker.util.ImmutableUtils;
 import saker.build.thirdparty.saker.util.ObjectUtils;
 import saker.build.thirdparty.saker.util.io.SerialUtils;
 import saker.clang.impl.option.CompilationPathOption;
+import saker.clang.impl.option.SimpleParameterOption;
 import saker.std.api.file.location.FileLocation;
 
 public final class FileCompilationProperties implements Externalizable {
@@ -27,7 +28,7 @@ public final class FileCompilationProperties implements Externalizable {
 	/**
 	 * The simple parameters are stored in a list as their order may matter
 	 */
-	protected List<String> simpleParameters = Collections.emptyList();
+	protected List<SimpleParameterOption> simpleParameters = Collections.emptyList();
 
 	/**
 	 * For {@link Externalizable}.
@@ -76,7 +77,7 @@ public final class FileCompilationProperties implements Externalizable {
 		}
 	}
 
-	public void setSimpleParameters(List<String> simpleParameters) {
+	public void setSimpleParameters(List<SimpleParameterOption> simpleParameters) {
 		if (simpleParameters == null) {
 			this.simpleParameters = Collections.emptyList();
 		} else {
@@ -96,7 +97,7 @@ public final class FileCompilationProperties implements Externalizable {
 		return language;
 	}
 
-	public Collection<CompilationPathOption> getIncludeDirectories() {
+	public List<CompilationPathOption> getIncludeDirectories() {
 		return includeDirectories;
 	}
 
@@ -104,7 +105,7 @@ public final class FileCompilationProperties implements Externalizable {
 		return macroDefinitions;
 	}
 
-	public List<String> getSimpleParameters() {
+	public List<SimpleParameterOption> getSimpleParameters() {
 		return simpleParameters;
 	}
 
