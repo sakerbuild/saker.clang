@@ -35,6 +35,10 @@ public interface ClangLinkerOptions {
 		return null;
 	}
 
+	public default String getBinaryName() {
+		return null;
+	}
+
 	public interface Visitor {
 		public default void visit(ClangLinkerOptions options) {
 			throw new UnsupportedOperationException("Unsupported linker options: " + options);

@@ -16,6 +16,7 @@ public class SimpleClangLinkerOptions implements ClangLinkerOptions {
 	private List<CompilationPathTaskOption> libraryPath;
 	private Map<String, SDKDescriptionTaskOption> sdks;
 	private List<SimpleParameterTaskOption> simpleParameters;
+	private String binaryName;
 
 	public SimpleClangLinkerOptions() {
 	}
@@ -27,6 +28,7 @@ public class SimpleClangLinkerOptions implements ClangLinkerOptions {
 		this.sdks = ObjectUtils.cloneTreeMap(copy.getSDKs(), Functionals.identityFunction(),
 				SDKDescriptionTaskOption::clone);
 		this.simpleParameters = ObjectUtils.cloneArrayList(copy.getSimpleLinkerParameters());
+		this.binaryName = copy.getBinaryName();
 	}
 
 	@Override
@@ -57,6 +59,11 @@ public class SimpleClangLinkerOptions implements ClangLinkerOptions {
 	@Override
 	public List<SimpleParameterTaskOption> getSimpleLinkerParameters() {
 		return simpleParameters;
+	}
+
+	@Override
+	public String getBinaryName() {
+		return binaryName;
 	}
 
 	@Override

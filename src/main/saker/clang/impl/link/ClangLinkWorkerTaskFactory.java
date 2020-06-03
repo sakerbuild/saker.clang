@@ -15,7 +15,6 @@ import java.util.NavigableMap;
 import java.util.NavigableSet;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.function.Supplier;
 
 import saker.build.exception.FileMirroringUnavailableException;
 import saker.build.file.DirectoryVisitPredicate;
@@ -39,7 +38,6 @@ import saker.build.task.exception.TaskEnvironmentSelectionFailedException;
 import saker.build.task.identifier.TaskIdentifier;
 import saker.build.thirdparty.saker.util.ImmutableUtils;
 import saker.build.thirdparty.saker.util.ObjectUtils;
-import saker.build.thirdparty.saker.util.function.Functionals;
 import saker.build.thirdparty.saker.util.io.SerialUtils;
 import saker.build.trace.BuildTrace;
 import saker.clang.api.link.ClangLinkerWorkerTaskOutput;
@@ -75,12 +73,18 @@ public class ClangLinkWorkerTaskFactory
 	private NavigableMap<String, SDKDescription> sdkDescriptions;
 	private List<SimpleParameterOption> simpleParameters;
 
+	private String binaryName;
+
 	public void setInputs(Set<FileLocation> inputs) {
 		this.inputs = inputs;
 	}
 
 	public void setLibraryPath(Set<CompilationPathOption> libraryPath) {
 		this.libraryPath = libraryPath;
+	}
+
+	public void setBinaryName(String binaryname) {
+		this.binaryName = binaryname;
 	}
 
 	public void setSdkDescriptions(NavigableMap<String, SDKDescription> sdkDescriptions) {
@@ -147,8 +151,13 @@ public class ClangLinkWorkerTaskFactory
 		int inputsize = inputs.size();
 		System.out.println("Linking " + inputsize + " file" + (inputsize == 1 ? "" : "s") + ".");
 
+		String binaryname = this.binaryName;
+		if (ObjectUtils.isNullOrEmpty(binaryname)) {
+			binaryname = passidstr;
+		}
+
 		LinkerInnerTaskFactory innertaskfactory = new LinkerInnerTaskFactory(envselector, inputs, libraryPath,
-				linkerinnertasksdkdescriptions, simpleParameters, outdirpath, passidstr);
+				linkerinnertasksdkdescriptions, simpleParameters, outdirpath, binaryname);
 		InnerTaskResults<LinkerInnerTaskFactoryResult> innertaskresults = taskcontext.startInnerTask(innertaskfactory,
 				null);
 		InnerTaskResultHolder<LinkerInnerTaskFactoryResult> nextres = innertaskresults.getNext();
@@ -176,6 +185,7 @@ public class ClangLinkWorkerTaskFactory
 		SerialUtils.writeExternalCollection(out, libraryPath);
 		SerialUtils.writeExternalMap(out, sdkDescriptions);
 		SerialUtils.writeExternalCollection(out, simpleParameters);
+		out.writeObject(binaryName);
 	}
 
 	@Override
@@ -185,12 +195,14 @@ public class ClangLinkWorkerTaskFactory
 		sdkDescriptions = SerialUtils.readExternalSortedImmutableNavigableMap(in,
 				SDKSupportUtils.getSDKNameComparator());
 		simpleParameters = SerialUtils.readExternalImmutableList(in);
+		binaryName = SerialUtils.readExternalObject(in);
 	}
 
 	@Override
 	public int hashCode() {
 		final int prime = 31;
 		int result = 1;
+		result = prime * result + ((binaryName == null) ? 0 : binaryName.hashCode());
 		result = prime * result + ((inputs == null) ? 0 : inputs.hashCode());
 		result = prime * result + ((libraryPath == null) ? 0 : libraryPath.hashCode());
 		result = prime * result + ((sdkDescriptions == null) ? 0 : sdkDescriptions.hashCode());
@@ -207,6 +219,11 @@ public class ClangLinkWorkerTaskFactory
 		if (getClass() != obj.getClass())
 			return false;
 		ClangLinkWorkerTaskFactory other = (ClangLinkWorkerTaskFactory) obj;
+		if (binaryName == null) {
+			if (other.binaryName != null)
+				return false;
+		} else if (!binaryName.equals(other.binaryName))
+			return false;
 		if (inputs == null) {
 			if (other.inputs != null)
 				return false;
@@ -317,7 +334,7 @@ public class ClangLinkWorkerTaskFactory
 		private NavigableMap<String, SDKDescription> sdkDescriptions;
 		private List<SimpleParameterOption> simpleParameters;
 		private SakerPath outDirectoryPath;
-		private String passIdentifier;
+		private String binaryName;
 
 		/**
 		 * For {@link Externalizable}.
@@ -327,14 +344,14 @@ public class ClangLinkWorkerTaskFactory
 
 		public LinkerInnerTaskFactory(TaskExecutionEnvironmentSelector environmentSelector, Set<FileLocation> inputs,
 				Set<CompilationPathOption> libraryPath, NavigableMap<String, SDKDescription> sdkDescriptions,
-				List<SimpleParameterOption> simpleParameters, SakerPath outdirpath, String passid) {
+				List<SimpleParameterOption> simpleParameters, SakerPath outdirpath, String binaryname) {
 			this.environmentSelector = environmentSelector;
 			this.inputs = inputs;
 			this.libraryPath = libraryPath;
 			this.sdkDescriptions = sdkDescriptions;
 			this.simpleParameters = simpleParameters;
 			this.outDirectoryPath = outdirpath;
-			this.passIdentifier = passid;
+			this.binaryName = binaryname;
 		}
 
 		@Override
@@ -436,14 +453,7 @@ public class ClangLinkWorkerTaskFactory
 			}
 			ClangUtils.evaluateSimpleParameters(commands, simpleParameters, sdks);
 
-			String outputfilename;
-			if (commands.contains("-shared")) {
-				//XXX find some better output file name for shared libraries
-				//    mapLibraryName is NOT okay as it is incorrect when cross compiling
-				outputfilename = passIdentifier;
-			} else {
-				outputfilename = passIdentifier;
-			}
+			String outputfilename = binaryName;
 			SakerPath outputexecpath = outDirectoryPath.resolve(outputfilename);
 
 			if (saker.build.meta.Versions.VERSION_FULL_COMPOUND >= 8_006) {
@@ -528,40 +538,20 @@ public class ClangLinkWorkerTaskFactory
 			SerialUtils.writeExternalMap(out, sdkDescriptions);
 			SerialUtils.writeExternalCollection(out, simpleParameters);
 			out.writeObject(outDirectoryPath);
-			out.writeObject(passIdentifier);
+			out.writeObject(binaryName);
 		}
 
 		@Override
 		public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
-			environmentSelector = (TaskExecutionEnvironmentSelector) in.readObject();
+			environmentSelector = SerialUtils.readExternalObject(in);
 			inputs = SerialUtils.readExternalImmutableLinkedHashSet(in);
 			libraryPath = SerialUtils.readExternalImmutableLinkedHashSet(in);
 			sdkDescriptions = SerialUtils.readExternalSortedImmutableNavigableMap(in,
 					SDKSupportUtils.getSDKNameComparator());
 			simpleParameters = SerialUtils.readExternalImmutableList(in);
-			outDirectoryPath = (SakerPath) in.readObject();
-			passIdentifier = (String) in.readObject();
-		}
-
-		//XXX somewhat duplicated with compiler worker factory
-		private SDKReference getSDKReferenceForName(SakerEnvironment environment,
-				NavigableMap<String, Supplier<SDKReference>> referencedsdkcache, String sdkname) {
-			Supplier<SDKReference> sdkref = referencedsdkcache.computeIfAbsent(sdkname, x -> {
-				SDKDescription desc = sdkDescriptions.get(sdkname);
-				if (desc == null) {
-					return () -> {
-						throw new SDKNotFoundException("SDK not found for name: " + sdkname);
-					};
-				}
-				try {
-					return Functionals.valSupplier(SDKSupportUtils.resolveSDKReference(environment, desc));
-				} catch (Exception e) {
-					return () -> {
-						throw new SDKManagementException("Failed to resolve SDK: " + sdkname + " as " + desc, e);
-					};
-				}
-			});
-			return sdkref.get();
+			outDirectoryPath = SerialUtils.readExternalObject(in);
+			binaryName = SerialUtils.readExternalObject(in);
 		}
 	}
+
 }

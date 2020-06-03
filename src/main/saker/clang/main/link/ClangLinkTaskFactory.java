@@ -73,6 +73,9 @@ public class ClangLinkTaskFactory extends FrontendTaskFactory<Object> {
 			@SakerInput(value = { "LinkerOptions" })
 			public Collection<ClangLinkerOptions> linkerOptionsOption;
 
+			@SakerInput(value = { "BinaryName" })
+			public String binaryNameOption;
+
 			@Override
 			public Object run(TaskContext taskcontext) throws Exception {
 				if (saker.build.meta.Versions.VERSION_FULL_COMPOUND >= 8_006) {
@@ -139,6 +142,8 @@ public class ClangLinkTaskFactory extends FrontendTaskFactory<Object> {
 					inputoptions.add(intaskopt.toLinkerInputPassOption(taskcontext));
 				}
 
+				String[] binaryname = { binaryNameOption };
+
 				Set<FileLocation> inputfiles = new LinkedHashSet<>();
 
 				Set<CompilationPathOption> librarypath = new LinkedHashSet<>();
@@ -195,6 +200,12 @@ public class ClangLinkTaskFactory extends FrontendTaskFactory<Object> {
 									addLinkerInputs(opttaskin, taskcontext, inputfiles);
 								}
 							}
+							String optbinname = options.getBinaryName();
+							if (!ObjectUtils.isNullOrEmpty(optbinname)) {
+								if (binaryname[0] == null) {
+									binaryname[0] = optbinname;
+								}
+							}
 						}
 					});
 				}
@@ -230,6 +241,7 @@ public class ClangLinkTaskFactory extends FrontendTaskFactory<Object> {
 				worker.setInputs(inputfiles);
 				worker.setSimpleParameters(simpleparams);
 				worker.setLibraryPath(librarypath);
+				worker.setBinaryName(binaryname[0]);
 				worker.setSdkDescriptions(sdkdescriptions);
 				taskcontext.startTask(workertaskid, worker, null);
 
