@@ -4,6 +4,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
+import saker.build.util.data.DataConverterUtils;
+import saker.clang.main.options.ClangPresetTaskOption;
 import saker.clang.main.options.CompilationPathTaskOption;
 import saker.clang.main.options.SimpleParameterTaskOption;
 import saker.compiler.utils.main.CompilationIdentifierTaskOption;
@@ -49,9 +51,33 @@ public interface ClangCompilerOptions {
 		return null;
 	}
 
+	public static ClangCompilerOptions valueOf(ClangPresetTaskOption preset) {
+		return new ClangCompilerOptions() {
+			@Override
+			public ClangCompilerOptions clone() {
+				return this;
+			}
+
+			@Override
+			public void accept(Visitor visitor) {
+				visitor.visit(preset);
+			}
+		};
+	}
+
 	public interface Visitor {
 		public default void visit(ClangCompilerOptions options) {
 			throw new UnsupportedOperationException("Unsupported compiler options: " + options);
+		}
+
+		public default void visit(ClangPresetTaskOption options) {
+			List<?> presets = options.getPresets();
+			if (presets == null) {
+				return;
+			}
+			for (Object p : presets) {
+				visit(DataConverterUtils.convert(p, ClangCompilerOptions.class));
+			}
 		}
 	}
 }

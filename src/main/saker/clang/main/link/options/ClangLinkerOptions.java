@@ -3,6 +3,8 @@ package saker.clang.main.link.options;
 import java.util.List;
 import java.util.Map;
 
+import saker.build.util.data.DataConverterUtils;
+import saker.clang.main.options.ClangPresetTaskOption;
 import saker.clang.main.options.CompilationPathTaskOption;
 import saker.clang.main.options.SimpleParameterTaskOption;
 import saker.compiler.utils.main.CompilationIdentifierTaskOption;
@@ -39,9 +41,33 @@ public interface ClangLinkerOptions {
 		return null;
 	}
 
+	public static ClangLinkerOptions valueOf(ClangPresetTaskOption preset) {
+		return new ClangLinkerOptions() {
+			@Override
+			public ClangLinkerOptions clone() {
+				return this;
+			}
+
+			@Override
+			public void accept(Visitor visitor) {
+				visitor.visit(preset);
+			}
+		};
+	}
+
 	public interface Visitor {
 		public default void visit(ClangLinkerOptions options) {
 			throw new UnsupportedOperationException("Unsupported linker options: " + options);
+		}
+
+		public default void visit(ClangPresetTaskOption options) {
+			List<?> presets = options.getPresets();
+			if (presets == null) {
+				return;
+			}
+			for (Object p : presets) {
+				visit(DataConverterUtils.convert(p, ClangLinkerOptions.class));
+			}
 		}
 
 	}
