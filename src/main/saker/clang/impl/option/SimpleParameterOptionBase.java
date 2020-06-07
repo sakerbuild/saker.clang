@@ -7,7 +7,7 @@ import java.io.ObjectOutput;
 
 import saker.build.thirdparty.saker.util.io.SerialUtils;
 
-public abstract class SimpleParameterOptionBase<T> implements SimpleParameterOption, Externalizable {
+public abstract class SimpleParameterOptionBase<T> extends SimpleParameterOption implements Externalizable {
 	private static final long serialVersionUID = 1L;
 
 	protected T value;

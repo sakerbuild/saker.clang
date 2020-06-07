@@ -11,6 +11,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.NavigableMap;
 import java.util.NavigableSet;
 import java.util.Set;
@@ -132,7 +133,7 @@ public class ClangLinkWorkerTaskFactory
 
 		TaskExecutionEnvironmentSelector envselector = SDKSupportUtils
 				.getSDKBasedClusterExecutionEnvironmentSelector(sdkDescriptions.values());
-		NavigableMap<String, SDKDescription> linkerinnertasksdkdescriptions = sdkDescriptions;
+		NavigableMap<String, SDKDescription> linkerinnertasksdkdescriptions;
 		if (envselector != null) {
 			EnvironmentSelectionResult envselectionresult;
 			try {
@@ -145,8 +146,11 @@ public class ClangLinkWorkerTaskFactory
 			linkerinnertasksdkdescriptions = SDKSupportUtils.pinSDKSelection(envselectionresult, sdkDescriptions);
 			envselector = SDKSupportUtils
 					.getSDKBasedClusterExecutionEnvironmentSelector(linkerinnertasksdkdescriptions.values());
+		} else {
+			NavigableMap<String, SDKReference> resolvedsdks = SDKSupportUtils.resolveSDKReferences(taskcontext,
+					sdkDescriptions);
+			linkerinnertasksdkdescriptions = SDKSupportUtils.pinSDKSelection(sdkDescriptions, resolvedsdks);
 		}
-		//TODO else we probably should report a dependency on the resolved sdks
 
 		int inputsize = inputs.size();
 		System.out.println("Linking " + inputsize + " file" + (inputsize == 1 ? "" : "s") + ".");
@@ -166,7 +170,8 @@ public class ClangLinkWorkerTaskFactory
 		}
 		LinkerInnerTaskFactoryResult innertaskresult = nextres.getResult();
 
-		return new ClangLinkerWorkerTaskOutputImpl(passcompilationidentifier, innertaskresult.getOutputPath());
+		return new ClangLinkerWorkerTaskOutputImpl(passcompilationidentifier, innertaskresult.getOutputPath(),
+				linkerinnertasksdkdescriptions);
 	}
 
 	@Override
@@ -252,6 +257,7 @@ public class ClangLinkWorkerTaskFactory
 
 		private CompilationIdentifier compilationIdentifier;
 		private SakerPath outputPath;
+		private NavigableMap<String, SDKDescription> sdkDescriptions;
 
 		/**
 		 * For {@link Externalizable}.
@@ -259,9 +265,11 @@ public class ClangLinkWorkerTaskFactory
 		public ClangLinkerWorkerTaskOutputImpl() {
 		}
 
-		private ClangLinkerWorkerTaskOutputImpl(CompilationIdentifier passcompilationidentifier, SakerPath outputpath) {
+		private ClangLinkerWorkerTaskOutputImpl(CompilationIdentifier passcompilationidentifier, SakerPath outputpath,
+				NavigableMap<String, SDKDescription> sdkDescriptions) {
 			this.compilationIdentifier = passcompilationidentifier;
 			this.outputPath = outputpath;
+			this.sdkDescriptions = ImmutableUtils.unmodifiableNavigableMap(sdkDescriptions);
 		}
 
 		@Override
@@ -275,15 +283,55 @@ public class ClangLinkWorkerTaskFactory
 		}
 
 		@Override
+		public Map<String, SDKDescription> getSDKs() {
+			return sdkDescriptions;
+		}
+
+		@Override
 		public void writeExternal(ObjectOutput out) throws IOException {
 			out.writeObject(compilationIdentifier);
 			out.writeObject(outputPath);
+			SerialUtils.writeExternalMap(out, sdkDescriptions);
 		}
 
 		@Override
 		public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
 			compilationIdentifier = (CompilationIdentifier) in.readObject();
 			outputPath = (SakerPath) in.readObject();
+			sdkDescriptions = SerialUtils.readExternalSortedImmutableNavigableMap(in,
+					SDKSupportUtils.getSDKNameComparator());
+		}
+
+		@Override
+		public int hashCode() {
+			return (compilationIdentifier == null) ? 0 : compilationIdentifier.hashCode();
+		}
+
+		@Override
+		public boolean equals(Object obj) {
+			if (this == obj)
+				return true;
+			if (obj == null)
+				return false;
+			if (getClass() != obj.getClass())
+				return false;
+			ClangLinkerWorkerTaskOutputImpl other = (ClangLinkerWorkerTaskOutputImpl) obj;
+			if (compilationIdentifier == null) {
+				if (other.compilationIdentifier != null)
+					return false;
+			} else if (!compilationIdentifier.equals(other.compilationIdentifier))
+				return false;
+			if (outputPath == null) {
+				if (other.outputPath != null)
+					return false;
+			} else if (!outputPath.equals(other.outputPath))
+				return false;
+			if (sdkDescriptions == null) {
+				if (other.sdkDescriptions != null)
+					return false;
+			} else if (!sdkDescriptions.equals(other.sdkDescriptions))
+				return false;
+			return true;
 		}
 
 		@Override

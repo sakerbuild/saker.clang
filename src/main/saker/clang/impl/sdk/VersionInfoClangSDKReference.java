@@ -45,7 +45,7 @@ public class VersionInfoClangSDKReference implements SDKReference, Externalizabl
 			return null;
 		}
 		switch (identifier) {
-			case ClangUtils.SDK_PATH_CLANG_EXECUTABLE: {
+			case ClangUtils.SDK_CLANG_PATH_EXECUTABLE: {
 				return SakerPath.valueOf(exe);
 			}
 			default: {
@@ -61,7 +61,7 @@ public class VersionInfoClangSDKReference implements SDKReference, Externalizabl
 			return null;
 		}
 		switch (identifier) {
-			case ClangUtils.SDK_PATH_CLANG_EXECUTABLE: {
+			case ClangUtils.SDK_CLANG_PATH_EXECUTABLE: {
 				return exe;
 			}
 			case PROPERTY_VERSION: {

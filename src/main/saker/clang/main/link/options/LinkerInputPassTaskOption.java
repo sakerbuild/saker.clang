@@ -26,11 +26,18 @@ import saker.build.task.TaskContext;
 import saker.build.thirdparty.saker.util.ImmutableUtils;
 import saker.build.thirdparty.saker.util.ObjectUtils;
 import saker.clang.api.compile.ClangCompilerWorkerTaskOutput;
+import saker.clang.main.compile.ClangCompileTaskFactory;
+import saker.clang.main.link.ClangLinkTaskFactory;
+import saker.nest.scriptinfo.reflection.annot.NestInformation;
 import saker.std.api.file.location.ExecutionFileLocation;
 import saker.std.api.file.location.FileCollection;
 import saker.std.api.file.location.FileLocation;
 import saker.std.main.file.option.FileLocationTaskOption;
 
+@NestInformation("Input for the " + ClangLinkTaskFactory.TASK_NAME + "() task.\n"
+		+ "The configuration specifies which files should be added to the input files for the clang invocation.\n"
+		+ "The configuration accepts simple paths, wildcards, file locations, file collections, and outputs of the "
+		+ ClangCompileTaskFactory.TASK_NAME + "() task.")
 public interface LinkerInputPassTaskOption {
 	public LinkerInputPassTaskOption clone();
 

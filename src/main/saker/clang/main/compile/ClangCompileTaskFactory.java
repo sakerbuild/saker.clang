@@ -33,6 +33,8 @@ import saker.clang.impl.compile.FileCompilationProperties;
 import saker.clang.impl.option.CompilationPathOption;
 import saker.clang.impl.option.SimpleParameterOption;
 import saker.clang.impl.util.ClangUtils;
+import saker.clang.main.TaskDocs;
+import saker.clang.main.TaskDocs.DocClangCompilerWorkerTaskOutput;
 import saker.clang.main.compile.options.ClangCompilerOptions;
 import saker.clang.main.compile.options.CompilationInputPassOption;
 import saker.clang.main.compile.options.CompilationInputPassTaskOption;
@@ -44,6 +46,10 @@ import saker.clang.main.options.SimpleParameterTaskOption;
 import saker.compiler.utils.api.CompilationIdentifier;
 import saker.compiler.utils.api.CompilerUtils;
 import saker.compiler.utils.main.CompilationIdentifierTaskOption;
+import saker.nest.scriptinfo.reflection.annot.NestInformation;
+import saker.nest.scriptinfo.reflection.annot.NestParameterInformation;
+import saker.nest.scriptinfo.reflection.annot.NestTaskInformation;
+import saker.nest.scriptinfo.reflection.annot.NestTypeUsage;
 import saker.nest.utils.FrontendTaskFactory;
 import saker.sdk.support.api.SDKDescription;
 import saker.sdk.support.api.SDKSupportUtils;
@@ -53,6 +59,50 @@ import saker.std.api.file.location.FileLocation;
 import saker.std.main.file.option.MultiFileLocationTaskOption;
 import saker.std.main.file.utils.TaskOptionUtils;
 
+@NestTaskInformation(returnType = @NestTypeUsage(DocClangCompilerWorkerTaskOutput.class))
+@NestInformation("Performs compilation using clang.\n"
+		+ "The task can be used to compile C, C++, Objective-C, Objective-C++ source files.\n"
+		+ "The result then later can be passed to the " + ClangLinkTaskFactory.TASK_NAME
+		+ "() task to produce the final binary (executable or library).\n"
+		+ "The task supports distributing its workload using build clusters.")
+
+@NestParameterInformation(value = "Input",
+		aliases = { "" },
+		required = true,
+		type = @NestTypeUsage(value = Collection.class, elementTypes = CompilationInputPassTaskOption.class),
+		info = @NestInformation("Specifies one or more inputs for the compilation.\n"
+				+ "The inputs may be either simple paths, wildcards, file locations, file collections or complex configuration specifying the "
+				+ "input source files passed to the backend compiler.\n"
+				+ "If not specified, the compilation language will be determined based on the extension of an input file. "
+				+ "If the file extension ends with \"pp\" or \"xx\", C++ is used. "
+				+ "Objective-C is used for the \"m\" extension, and Objective-C++ for \"mm\". "
+				+ "In any other cases, the file is compiled for the C language."))
+
+@NestParameterInformation(value = "Identifier",
+		type = @NestTypeUsage(CompilationIdentifierTaskOption.class),
+		info = @NestInformation("The Identifier of the compilation.\n"
+				+ "Each compilation task has an identifier that uniquely identifies it during a build execution. "
+				+ "The identifier is used to determine the output directory of the compilation. It is also used "
+				+ "to merge the appropriate options specified in CompilerOptions parameter.\n"
+				+ "An identifier constists of dash separated parts of character sequences of a-z, A-Z, 0-9, _, ., (), [], @.\n"
+				+ "An option specification in the CompilerOptions can be merged if "
+				+ "the compilation identifier contains all parts of the option Identifier.\n"
+				+ "If not specified, the identifier is determined based on the current working directory, "
+				+ "or assigned to \"default\", however, it won't be subject to option merging."))
+@NestParameterInformation(value = "SDKs",
+		type = @NestTypeUsage(value = Map.class,
+				elementTypes = { saker.sdk.support.main.TaskDocs.DocSdkNameOption.class,
+						SDKDescriptionTaskOption.class }),
+		info = @NestInformation(TaskDocs.OPTION_SDKS))
+@NestParameterInformation(value = "CompilerOptions",
+		type = @NestTypeUsage(value = Collection.class, elementTypes = ClangCompilerOptions.class),
+		info = @NestInformation("Specifies one or more option specifications that are merged with the inputs when applicable.\n"
+				+ "The parameter can be used to indirectly specify various compilation arguments independent of the actual inputs. "
+				+ "This is generally useful when common options need to be specified to multiple compilation inputs.\n"
+				+ "When compilation arguments are determined, each option specification will be merged into the used argumnets if applicable. "
+				+ "An option is considered to be applicable to merging if all of the Identifier parts are contained in the compilation task Identifier, "
+				+ "and the Language arguments can be matched.\n"
+				+ "In case of unresolveable merge conflicts, the task will throw an appropriate exception."))
 public class ClangCompileTaskFactory extends FrontendTaskFactory<Object> {
 	private static final long serialVersionUID = 1L;
 

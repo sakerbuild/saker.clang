@@ -28,6 +28,7 @@ import saker.build.thirdparty.saker.util.ImmutableUtils;
 import saker.clang.impl.option.CompilationPathOption;
 import saker.clang.impl.util.option.FileCompilationPathOptionImpl;
 import saker.clang.impl.util.option.SDKPathReferenceCompilationPathOption;
+import saker.nest.scriptinfo.reflection.annot.NestInformation;
 import saker.sdk.support.api.SDKPathCollectionReference;
 import saker.sdk.support.api.SDKPathReference;
 import saker.std.api.file.location.ExecutionFileLocation;
@@ -35,6 +36,7 @@ import saker.std.api.file.location.FileCollection;
 import saker.std.api.file.location.FileLocation;
 import saker.std.main.file.option.FileLocationTaskOption;
 
+@NestInformation("Input file(s) that can be paths, wildcards, file locations, or SDK path references.")
 public interface CompilationPathTaskOption {
 	public CompilationPathTaskOption clone();
 
@@ -42,7 +44,8 @@ public interface CompilationPathTaskOption {
 
 	public static CompilationPathTaskOption valueOf(FileLocation filelocation) {
 		FileLocationTaskOption.validateFileLocation(filelocation);
-		return new SimpleCompilationPathTaskOption(Collections.singleton(new FileCompilationPathOptionImpl(filelocation)));
+		return new SimpleCompilationPathTaskOption(
+				Collections.singleton(new FileCompilationPathOptionImpl(filelocation)));
 	}
 
 	public static CompilationPathTaskOption valueOf(FileCollection files) {

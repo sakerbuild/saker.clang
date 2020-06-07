@@ -178,7 +178,7 @@ public class ClangCompileWorkerTaskFactory
 
 		TaskExecutionEnvironmentSelector envselector = SDKSupportUtils
 				.getSDKBasedClusterExecutionEnvironmentSelector(sdkDescriptions.values());
-		NavigableMap<String, SDKDescription> compilerinnertasksdkdescriptions = sdkDescriptions;
+		NavigableMap<String, SDKDescription> compilerinnertasksdkdescriptions;
 		EnvironmentSelectionResult envselectionresult;
 		if (envselector != null) {
 			try {
@@ -192,8 +192,10 @@ public class ClangCompileWorkerTaskFactory
 			envselector = SDKSupportUtils
 					.getSDKBasedClusterExecutionEnvironmentSelector(compilerinnertasksdkdescriptions.values());
 		} else {
-			//TODO in this case we probably should report a dependency on the resolved sdks
 			envselectionresult = null;
+			NavigableMap<String, SDKReference> resolvedsdks = SDKSupportUtils.resolveSDKReferences(taskcontext,
+					sdkDescriptions);
+			compilerinnertasksdkdescriptions = SDKSupportUtils.pinSDKSelection(sdkDescriptions, resolvedsdks);
 		}
 
 		CompilerState prevoutput = taskcontext.getPreviousTaskOutput(CompilerState.class, CompilerState.class);
@@ -461,7 +463,7 @@ public class ClangCompileWorkerTaskFactory
 		}
 
 		return new ClangCompilerWorkerTaskOutputImpl(passidentifier, nstate.getOutputObjectFilePaths(),
-				sdkDescriptions);
+				compilerinnertasksdkdescriptions);
 	}
 
 	private static final class CompilationDuplicationPredicate implements TaskDuplicationPredicate {

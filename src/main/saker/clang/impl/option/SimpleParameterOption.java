@@ -5,14 +5,14 @@ import saker.sdk.support.api.SDKPathReference;
 import saker.sdk.support.api.SDKPropertyCollectionReference;
 import saker.sdk.support.api.SDKPropertyReference;
 
-public interface SimpleParameterOption {
-	public void accept(Visitor visitor);
+public abstract class SimpleParameterOption {
+	public abstract void accept(Visitor visitor);
 
 	@Override
-	public boolean equals(Object obj);
+	public abstract boolean equals(Object obj);
 
 	@Override
-	public int hashCode();
+	public abstract int hashCode();
 
 	public interface Visitor {
 		public default void visit(String value) {

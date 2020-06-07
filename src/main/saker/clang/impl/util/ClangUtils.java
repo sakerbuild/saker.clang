@@ -7,9 +7,9 @@ import java.util.Map;
 
 import saker.build.file.path.SakerPath;
 import saker.build.runtime.environment.SakerEnvironment;
+import saker.build.thirdparty.saker.util.ArrayUtils;
 import saker.build.thirdparty.saker.util.ImmutableUtils;
 import saker.build.thirdparty.saker.util.ObjectUtils;
-import saker.build.thirdparty.saker.util.io.IOUtils;
 import saker.clang.impl.option.SimpleParameterOption;
 import saker.clang.impl.sdk.DefaultClangSDKDescription;
 import saker.process.api.ProcessIOConsumer;
@@ -34,32 +34,36 @@ public class ClangUtils {
 	public static final String ENVIRONMENT_PARAMETER_CLANG_EXECUTABLES = "saker.clang.executables";
 	public static final String ENVIRONMENT_PARAMETER_CLANGXX_EXECUTABLES = "saker.clang++.executables";
 
-	public static final String SDK_PATH_CLANG_EXECUTABLE = "exe";
+	public static final String SDK_CLANG_PATH_EXECUTABLE = "exe";
 
 	private ClangUtils() {
 		throw new UnsupportedOperationException();
 	}
 
 	public static String getClangExecutable(SDKReference sdk) {
-		Exception exc = null;
+		Exception[] causes = {};
 		try {
-			SakerPath path = sdk.getPath(SDK_PATH_CLANG_EXECUTABLE);
+			SakerPath path = sdk.getPath(SDK_CLANG_PATH_EXECUTABLE);
 			if (path != null) {
 				return path.toString();
 			}
 		} catch (Exception e) {
-			exc = IOUtils.addExc(exc, e);
+			causes = ArrayUtils.appended(causes, e);
 		}
 		try {
-			String prop = sdk.getProperty(SDK_PATH_CLANG_EXECUTABLE);
+			String prop = sdk.getProperty(SDK_CLANG_PATH_EXECUTABLE);
 			if (prop != null) {
 				return prop;
 			}
 		} catch (Exception e) {
-			exc = IOUtils.addExc(exc, e);
+			causes = ArrayUtils.appended(causes, e);
 		}
-		throw new SDKPathNotFoundException(
-				"Clang executable path not found in SDK for identifier: " + SDK_PATH_CLANG_EXECUTABLE, exc);
+		SDKPathNotFoundException exc = new SDKPathNotFoundException(
+				"Clang executable path not found in SDK for identifier: " + SDK_CLANG_PATH_EXECUTABLE);
+		for (Exception ex : causes) {
+			exc.addSuppressed(ex);
+		}
+		throw exc;
 	}
 
 	public static void removeClangEnvironmentVariables(Map<String, String> env) {
