@@ -145,8 +145,8 @@ upload(){
 	include(Path: secret/secrets.build)
 	nest.server.upload(
 		Bundles: $export[bundlepaths],
-		APIKey: global(saker.msvc.UPLOAD_API_KEY),
-		APISecret: global(saker.msvc.UPLOAD_API_SECRET),
+		APIKey: global(saker.clang.UPLOAD_API_KEY),
+		APISecret: global(saker.clang.UPLOAD_API_SECRET),
 		Overwrite: true,
 	)
 }
