@@ -1,6 +1,6 @@
 # saker.clang
 
-![Build status](https://img.shields.io/azure-devops/build/sakerbuild/2a9d54e7-8897-4ae6-848a-b13ab24e8e8f/19/master)
+![Build status](https://img.shields.io/azure-devops/build/sakerbuild/2a9d54e7-8897-4ae6-848a-b13ab24e8e8f/19/master) [![Latest version](https://mirror.nest.saker.build/badges/saker.clang/version.svg)](https://nest.saker.build/package/saker.clang "saker.clang | saker.nest")
 
 Clang support for the saker.build system
 
