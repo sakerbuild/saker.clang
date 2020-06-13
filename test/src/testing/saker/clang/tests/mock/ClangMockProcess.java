@@ -8,8 +8,10 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermission;
 import java.util.ArrayList;
 import java.util.Deque;
+import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -46,7 +48,7 @@ public class ClangMockProcess {
 					List<SakerPath> inputfiles = getInputFiles(commands);
 
 					String target = defaulttarget;
-					resultCode = executeCompilation(inputfiles, outputpath, stdout, stderr, commands, target, version);
+					resultCode = executeClang(inputfiles, outputpath, stdout, stderr, commands, target, version);
 				} finally {
 					if (stdoutconsumer != null) {
 						stdoutconsumer.handleOutput(ByteBuffer.wrap(stdoutbaos.getBuffer(), 0, stdoutbaos.size()));
@@ -63,141 +65,19 @@ public class ClangMockProcess {
 		return -1;
 	}
 
-	private static int executeCompilation(List<SakerPath> inputpaths, SakerPath outputpath, PrintStream stdout,
+	private static int executeClang(List<SakerPath> inputpaths, SakerPath outputpath, PrintStream stdout,
 			PrintStream stderr, List<String> commands, String target, String version) throws IOException {
 
 		if (commands.contains("-c")) {
 			//compile only
-			if (inputpaths.size() > 1) {
-				throw new IllegalArgumentException("Too many compilation inputs: " + inputpaths);
-			}
-			SakerPath depfile = SakerPath.valueOf(requireCommandArgument(commands, "-MF"));
-			String language = requireCommandArgument(commands, "-x").toLowerCase(Locale.ENGLISH);
-			StringBuilder pch = null;
-			if (language.endsWith("-header")) {
-				pch = new StringBuilder();
-			}
-
-			UnsyncByteArrayOutputStream depfilebaos = new UnsyncByteArrayOutputStream();
-			UnsyncByteArrayOutputStream fileoutbuf = new UnsyncByteArrayOutputStream();
-			try (PrintStream depfileout = new PrintStream(depfilebaos)) {
-
-				SakerPath inputpath = inputpaths.get(0);
-
-				int langmultiplier = getLanguageMockMultipler(language);
-				int targetmultiplier = getTargetMultiplier(target);
-
-				List<SakerPath> includedirs = getIncludeDirectoriesFromCommands(commands);
-				LinkedList<SourceLine> pendinglines = new LinkedList<>();
-				Set<SakerPath> includedpaths = new TreeSet<>();
-
-				for (Iterator<String> it = commands.iterator(); it.hasNext();) {
-					String cmd = it.next();
-					if (cmd.equals("-include") || cmd.equals("-include-pch")) {
-						String fipath = it.next();
-						SourceLine incsrcline = new SourceLine(SakerPath.valueOf("<built-in>"),
-								"#include \"" + fipath + "\"");
-						try {
-							SakerPath incpath = SakerPath.valueOf(fipath);
-
-							//TODO this is incorrect, as the transitive includes need to be processed before the next force include is added
-							List<SourceLine> lines = getIncludeLines(incsrcline, incpath);
-							includedpaths.add(incpath);
-							pendinglines.addAll(lines);
-						} catch (InvalidPathException | InvalidPathFormatException | IOException e) {
-							printIncludeNotFound(incsrcline, fipath, stdout);
-							return -2;
-						}
-						continue;
-					}
-					if (cmd.equals("-include-pch")) {
-
-					}
-				}
-
-				try (BufferedReader reader = Files.newBufferedReader(LocalFileProvider.toRealPath(inputpath));
-						PrintStream outps = new PrintStream(fileoutbuf)) {
-					outps.println(MockingClangTestMetric.createFileTypeLine(MockingClangTestMetric.TYPE_OBJ, target));
-					outps.println("#version " + version);
-					for (SourceLine srcline; (srcline = nextLine(reader, pendinglines, inputpath)) != null;) {
-						String line = srcline.line;
-						if (line.isEmpty()) {
-							continue;
-						}
-						if (line.startsWith("#include ")) {
-							String includephrase = line.substring(9).trim();
-							if (includephrase.isEmpty()) {
-								return -2;
-							}
-							SakerPath includepath = SakerPath
-									.valueOf(includephrase.substring(1, includephrase.length() - 1));
-							if (includephrase.charAt(0) == '<'
-									&& includephrase.charAt(includephrase.length() - 1) == '>') {
-								includeBracketIncludePath(srcline, includedirs, pendinglines, includedpaths,
-										includepath, stdout, stderr, commands);
-							} else if (includephrase.charAt(0) == '\"'
-									&& includephrase.charAt(includephrase.length() - 1) == '\"') {
-								throw new UnsupportedOperationException(
-										"Quoted inclusion shouldn't be used as it is prone to mirroring errors.");
-							} else {
-								return -3;
-							}
-							continue;
-						}
-						if (pch != null) {
-							pch.append(line);
-							pch.append('\n');
-						}
-
-						int lineval;
-						try {
-							lineval = Integer.parseInt(line);
-						} catch (NumberFormatException e) {
-							String defineval = getDefineValue(commands, line);
-							if (defineval == null) {
-								throw new IllegalArgumentException("Illegal token: " + line);
-							}
-							if (defineval.isEmpty()) {
-								//skip
-								continue;
-							}
-							lineval = Integer.parseInt(defineval);
-						}
-						outps.println(lineval * langmultiplier * targetmultiplier);
-					}
-				}
-				depfileout.println(outputpath + ": \\");
-				if (includedpaths.isEmpty()) {
-					depfileout.println(inputpath);
-				} else {
-					depfileout.println(inputpath + " \\");
-					for (Iterator<SakerPath> it = includedpaths.iterator(); it.hasNext();) {
-						SakerPath ip = it.next();
-						depfileout.print("  ");
-						depfileout.print(ip.toString().replace(" ", "\\ "));
-						if (it.hasNext()) {
-							depfileout.println(" \\");
-						}
-					}
-				}
-			}
-
-			try {
-				byte[] outputcontents = pch == null ? fileoutbuf.toByteArray()
-						: pch.toString().getBytes(StandardCharsets.UTF_8);
-				Files.write(LocalFileProvider.toRealPath(outputpath), outputcontents);
-			} catch (IOException e) {
-				e.printStackTrace();
-				return -99;
-			}
-
-			if (depfile != null) {
-				Files.write(LocalFileProvider.toRealPath(depfile), depfilebaos.toByteArray());
-			}
-
-			return 0;
+			return executeCompilation(inputpaths, outputpath, stdout, stderr, commands, target, version);
 		}
 
+		return executeLinking(inputpaths, outputpath, commands, target, version);
+	}
+
+	private static int executeLinking(List<SakerPath> inputpaths, SakerPath outputpath, List<String> commands,
+			String target, String version) {
 		List<SakerPath> libpathdirs = getLibPathDirectoriesFromCommands(commands);
 		Set<SakerPath> includedlibs = new TreeSet<>();
 
@@ -226,11 +106,148 @@ public class ClangMockProcess {
 			return -99;
 		}
 		try {
-			Files.write(LocalFileProvider.toRealPath(outputpath), fileoutbuf.toByteArray());
+			Path realpath = LocalFileProvider.toRealPath(outputpath);
+			Files.write(realpath, fileoutbuf.toByteArray());
+			try {
+				//all permissions are set for libs as well
+				Files.setPosixFilePermissions(realpath, EnumSet.allOf(PosixFilePermission.class));
+			} catch (UnsupportedOperationException e) {
+			}
 		} catch (IOException e) {
 			e.printStackTrace();
 			return -99;
 		}
+		return 0;
+	}
+
+	private static int executeCompilation(List<SakerPath> inputpaths, SakerPath outputpath, PrintStream stdout,
+			PrintStream stderr, List<String> commands, String target, String version) throws IOException {
+		if (inputpaths.size() > 1) {
+			throw new IllegalArgumentException("Too many compilation inputs: " + inputpaths);
+		}
+		SakerPath depfile = SakerPath.valueOf(requireCommandArgument(commands, "-MF"));
+		String language = requireCommandArgument(commands, "-x").toLowerCase(Locale.ENGLISH);
+		StringBuilder pch = null;
+		if (language.endsWith("-header")) {
+			pch = new StringBuilder();
+		}
+
+		UnsyncByteArrayOutputStream depfilebaos = new UnsyncByteArrayOutputStream();
+		UnsyncByteArrayOutputStream fileoutbuf = new UnsyncByteArrayOutputStream();
+		try (PrintStream depfileout = new PrintStream(depfilebaos)) {
+
+			SakerPath inputpath = inputpaths.get(0);
+
+			int langmultiplier = getLanguageMockMultipler(language);
+			int targetmultiplier = getTargetMultiplier(target);
+
+			List<SakerPath> includedirs = getIncludeDirectoriesFromCommands(commands);
+			LinkedList<SourceLine> pendinglines = new LinkedList<>();
+			Set<SakerPath> includedpaths = new TreeSet<>();
+
+			for (Iterator<String> it = commands.iterator(); it.hasNext();) {
+				String cmd = it.next();
+				if (cmd.equals("-include") || cmd.equals("-include-pch")) {
+					String fipath = it.next();
+					SourceLine incsrcline = new SourceLine(SakerPath.valueOf("<built-in>"),
+							"#include \"" + fipath + "\"");
+					try {
+						SakerPath incpath = SakerPath.valueOf(fipath);
+
+						//TODO this is incorrect, as the transitive includes need to be processed before the next force include is added
+						List<SourceLine> lines = getIncludeLines(incsrcline, incpath);
+						includedpaths.add(incpath);
+						pendinglines.addAll(lines);
+					} catch (InvalidPathException | InvalidPathFormatException | IOException e) {
+						printIncludeNotFound(incsrcline, fipath, stdout);
+						return -2;
+					}
+					continue;
+				}
+				if (cmd.equals("-include-pch")) {
+
+				}
+			}
+
+			try (BufferedReader reader = Files.newBufferedReader(LocalFileProvider.toRealPath(inputpath));
+					PrintStream outps = new PrintStream(fileoutbuf)) {
+				outps.println(MockingClangTestMetric.createFileTypeLine(MockingClangTestMetric.TYPE_OBJ, target));
+				outps.println("#version " + version);
+				for (SourceLine srcline; (srcline = nextLine(reader, pendinglines, inputpath)) != null;) {
+					String line = srcline.line;
+					if (line.isEmpty()) {
+						continue;
+					}
+					if (line.startsWith("#include ")) {
+						String includephrase = line.substring(9).trim();
+						if (includephrase.isEmpty()) {
+							return -2;
+						}
+						SakerPath includepath = SakerPath
+								.valueOf(includephrase.substring(1, includephrase.length() - 1));
+						if (includephrase.charAt(0) == '<' && includephrase.charAt(includephrase.length() - 1) == '>') {
+							includeBracketIncludePath(srcline, includedirs, pendinglines, includedpaths, includepath,
+									stdout, stderr, commands);
+						} else if (includephrase.charAt(0) == '\"'
+								&& includephrase.charAt(includephrase.length() - 1) == '\"') {
+							throw new UnsupportedOperationException(
+									"Quoted inclusion shouldn't be used as it is prone to mirroring errors.");
+						} else {
+							return -3;
+						}
+						continue;
+					}
+					if (pch != null) {
+						pch.append(line);
+						pch.append('\n');
+					}
+
+					int lineval;
+					try {
+						lineval = Integer.parseInt(line);
+					} catch (NumberFormatException e) {
+						String defineval = getDefineValue(commands, line);
+						if (defineval == null) {
+							throw new IllegalArgumentException("Illegal token: " + line);
+						}
+						if (defineval.isEmpty()) {
+							//skip
+							continue;
+						}
+						lineval = Integer.parseInt(defineval);
+					}
+					outps.println(lineval * langmultiplier * targetmultiplier);
+				}
+			}
+			depfileout.println(outputpath + ": \\");
+			if (includedpaths.isEmpty()) {
+				depfileout.println(inputpath);
+			} else {
+				depfileout.println(inputpath + " \\");
+				for (Iterator<SakerPath> it = includedpaths.iterator(); it.hasNext();) {
+					SakerPath ip = it.next();
+					depfileout.print("  ");
+					depfileout.print(ip.toString().replace(" ", "\\ "));
+					if (it.hasNext()) {
+						depfileout.println(" \\");
+					}
+				}
+			}
+		}
+
+		try {
+			byte[] outputcontents = pch == null ? fileoutbuf.toByteArray()
+					: pch.toString().getBytes(StandardCharsets.UTF_8);
+			Files.write(LocalFileProvider.toRealPath(outputpath), outputcontents);
+		} catch (IOException e) {
+			e.printStackTrace();
+			return -99;
+		}
+
+		if (depfile != null) {
+			Files.write(LocalFileProvider.toRealPath(depfile), depfilebaos.toByteArray());
+		}
+
 		return 0;
 	}
 

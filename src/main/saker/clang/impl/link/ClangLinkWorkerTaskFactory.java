@@ -530,7 +530,11 @@ public class ClangLinkWorkerTaskFactory
 			}
 
 			ProviderHolderPathKey outputpathkey = LocalFileProvider.getInstance().getPathKey(outputmirrorpath);
-			taskcontext.invalidate(outputpathkey);
+			if (saker.build.meta.Versions.VERSION_FULL_COMPOUND >= 8_013) {
+				taskcontext.getTaskUtilities().invalidateWithPosixFilePermissions(outputpathkey);
+			} else {
+				taskcontext.invalidate(outputpathkey);
+			}
 
 			SakerDirectory outdir = taskcontext.getTaskUtilities().resolveDirectoryAtPath(outDirectoryPath);
 
