@@ -45,9 +45,9 @@ public class SimpleCompileTest extends ClangTestCase {
 				linkExe(TARGET_DEFAULT, langC(1), langC(456), langCpp(456)));
 	}
 
-	private static boolean isPosixFilePermissionsSupported() throws IOException {
+	private boolean isPosixFilePermissionsSupported() throws IOException {
 		try {
-			Files.getPosixFilePermissions(getTestingBaseWorkingDirectory().resolve("saker.build"));
+			Files.getPosixFilePermissions(getWorkingDirectory().resolve("saker.build"));
 			return true;
 		} catch (UnsupportedOperationException e) {
 			return false;
