@@ -8,7 +8,7 @@ import saker.sdk.support.api.SDKPathReference;
 import saker.sdk.support.api.SDKPropertyCollectionReference;
 import saker.sdk.support.api.SDKPropertyReference;
 
-@NestTypeInformation(qualifiedName = "SimpleParameter")
+@NestTypeInformation(qualifiedName = "ClangSimpleParameter")
 @NestInformation("Simple option that is directly passed to the given tool on the command line.")
 public class SimpleParameterTaskOption {
 	private SimpleParameterOption parameter;

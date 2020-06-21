@@ -41,7 +41,7 @@ public class TaskDocs {
 			+ "Precompiled headers files can be preprocessed by the compiler and included in multiple source files. "
 			+ "Using them can result in faster builds as the compiler can reuse the result of the precompilation.\n"
 			+ "It is recommended that the precompiled headers contains infrequently changing source files.\n"
-			+ "The precompiled header will be automatically force included in the compiled source files.)";
+			+ "The precompiled header will be automatically force included in the compiled source files.";
 
 	public static final String COMPILE_FORCE_INCLUDE = "Specifies the files that should be force included in the compiled source files.\n"
 			+ "The option corresponds to the -include argument of clang. The option acts as if the specified file was included with the #include directive "
@@ -63,7 +63,7 @@ public class TaskDocs {
 			+ "The specified string will be used as the name of the generated executable or library. An extension is not "
 			+ "appended to the binary name automatically.\n"
 			+ "If not specified, the file name will be generated based on the compilation Identifier.";
-	
+
 	public static final String OPTIONS_IDENTIFIER = "Specifies the Identifier to which the options should be merged into.\n"
 			+ "The associated options will only be merged into the target configuration if the target Identifier "
 			+ "contains all parts as this Identifier. If no Identifier specified for this options, the Identifier "
@@ -128,6 +128,7 @@ public class TaskDocs {
 
 	@NestInformation("Represents the programming language that should be used for compilation.")
 	@NestTypeInformation(kind = TypeInformationKind.ENUM,
+			qualifiedName = "CompilationLanguage",
 			enumValues = {
 
 					@NestFieldInformation(value = DocCompilationLanguage.C,
