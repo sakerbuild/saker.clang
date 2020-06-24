@@ -1006,6 +1006,9 @@ public class ClangCompileWorkerTaskFactory
 		public CompilerInnerTaskResult run(TaskContext taskcontext) throws Exception {
 			FileCompilationConfiguration compilationentry = coordinator.take();
 			if (compilationentry == null) {
+				if (saker.build.meta.Versions.VERSION_FULL_COMPOUND >= 8_014) {
+					BuildTrace.omitInnerTask();
+				}
 				return null;
 			}
 			FileCompilationProperties compilationentryproperties = compilationentry.getProperties();
