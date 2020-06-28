@@ -10,6 +10,7 @@ import saker.build.runtime.environment.SakerEnvironment;
 import saker.build.thirdparty.saker.util.ArrayUtils;
 import saker.build.thirdparty.saker.util.ImmutableUtils;
 import saker.build.thirdparty.saker.util.ObjectUtils;
+import saker.build.thirdparty.saker.util.StringUtils;
 import saker.clang.impl.option.SimpleParameterOption;
 import saker.clang.impl.sdk.DefaultClangSDKDescription;
 import saker.process.api.ProcessIOConsumer;
@@ -81,8 +82,8 @@ public class ClangUtils {
 
 	public static ClangVersionInformation getClangVersionInformation(String executable)
 			throws IOException, InterruptedException {
-		SakerProcessBuilder pb = SakerProcessBuilder.create()
-				.setCommand(ImmutableUtils.asUnmodifiableArrayList(executable, "--version"));
+		List<String> cmd = ImmutableUtils.asUnmodifiableArrayList(executable, "--version");
+		SakerProcessBuilder pb = SakerProcessBuilder.create().setCommand(cmd);
 		pb.setStandardErrorMerge(true);
 		CollectingProcessIOConsumer stdoutconsumer = new CollectingProcessIOConsumer();
 		pb.setStandardOutputConsumer(stdoutconsumer);
@@ -90,8 +91,11 @@ public class ClangUtils {
 			proc.processIO();
 			int exitcode = proc.waitFor();
 			if (exitcode != 0) {
-				throw new RuntimeException("Failed to determine clang version, exit code: " + exitcode);
+				throw new RuntimeException(
+						"Failed to determine clang version, exit code: " + exitcode + " for " + executable);
 			}
+		} catch (IOException e) {
+			throw new IOException("Failed to run command: " + StringUtils.toStringJoin(" ", cmd), e);
 		}
 
 		String output = stdoutconsumer.getOutputString();

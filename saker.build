@@ -69,6 +69,7 @@ export(
 				Nest-Bundle-Format-Version: 1,
 				Nest-Bundle-Identifier: "saker.clang-v{ global(VERSION_saker.clang) }",
 				Nest-Bundle-Source: "saker.clang-sources-v{ global(VERSION_saker.clang) }",
+				Nest-ClassPath-Supported-Build-System-Versions: "[0.8.9)",
 			},
 		},
 	)
@@ -89,6 +90,7 @@ export(
 				Nest-Bundle-Format-Version: 1,
 				Nest-Bundle-Identifier: "saker.clang-api-v{ global(VERSION_saker.clang) }",
 				Nest-Bundle-Source: "saker.clang-sources-v{ global(VERSION_saker.clang) }",
+				Nest-ClassPath-Supported-Build-System-Versions: "[0.8.9)",
 			},
 		},
 	)
@@ -113,6 +115,7 @@ export(
 				Nest-Bundle-Format-Version: 1,
 				Nest-Bundle-Identifier: "saker.clang-impl-v{ global(VERSION_saker.clang) }",
 				Nest-Bundle-Source: "saker.clang-sources-v{ global(VERSION_saker.clang) }",
+				Nest-ClassPath-Supported-Build-System-Versions: "[0.8.9)",
 			},
 		},
 	)
