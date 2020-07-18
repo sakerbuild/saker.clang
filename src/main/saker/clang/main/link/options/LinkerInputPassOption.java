@@ -15,6 +15,8 @@
  */
 package saker.clang.main.link.options;
 
+import saker.sdk.support.api.SDKPathCollectionReference;
+
 public interface LinkerInputPassOption {
 	public void accept(Visitor visitor);
 
@@ -24,6 +26,10 @@ public interface LinkerInputPassOption {
 		}
 
 		public default void visit(CompilerOutputLinkerInputPass input) {
+			throw new UnsupportedOperationException("Unsupported input: " + input);
+		}
+
+		public default void visit(SDKPathCollectionReference input) {
 			throw new UnsupportedOperationException("Unsupported input: " + input);
 		}
 	}

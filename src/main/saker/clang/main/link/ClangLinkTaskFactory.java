@@ -28,6 +28,8 @@ import saker.clang.impl.link.ClangLinkWorkerTaskIdentifier;
 import saker.clang.impl.option.CompilationPathOption;
 import saker.clang.impl.option.SimpleParameterOption;
 import saker.clang.impl.util.ClangUtils;
+import saker.clang.impl.util.option.FileCompilationPathOptionImpl;
+import saker.clang.impl.util.option.SDKPathReferenceCompilationPathOption;
 import saker.clang.main.TaskDocs;
 import saker.clang.main.TaskDocs.DocCLinkerWorkerTaskOutput;
 import saker.clang.main.compile.ClangCompileTaskFactory;
@@ -47,6 +49,7 @@ import saker.nest.scriptinfo.reflection.annot.NestTaskInformation;
 import saker.nest.scriptinfo.reflection.annot.NestTypeUsage;
 import saker.nest.utils.FrontendTaskFactory;
 import saker.sdk.support.api.SDKDescription;
+import saker.sdk.support.api.SDKPathCollectionReference;
 import saker.sdk.support.api.SDKSupportUtils;
 import saker.sdk.support.api.exc.SDKNameConflictException;
 import saker.sdk.support.main.option.SDKDescriptionTaskOption;
@@ -197,7 +200,7 @@ public class ClangLinkTaskFactory extends FrontendTaskFactory<Object> {
 
 				String[] binaryname = { binaryNameOption };
 
-				Set<FileLocation> inputfiles = new LinkedHashSet<>();
+				Set<CompilationPathOption> inputfiles = new LinkedHashSet<>();
 
 				Set<CompilationPathOption> librarypath = new LinkedHashSet<>();
 				Map<CompilationPathTaskOption, Collection<CompilationPathOption>> calculatedlibpathoptions = new HashMap<>();
@@ -318,6 +321,10 @@ public class ClangLinkTaskFactory extends FrontendTaskFactory<Object> {
 				@Override
 				public void visit(FileLinkerInputPass input) {
 				}
+
+				@Override
+				public void visit(SDKPathCollectionReference input) {
+				}
 			});
 		}
 		if (parts.isEmpty()) {
@@ -327,12 +334,16 @@ public class ClangLinkTaskFactory extends FrontendTaskFactory<Object> {
 	}
 
 	private static void addLinkerInputs(LinkerInputPassTaskOption inputoption, TaskContext taskcontext,
-			Set<FileLocation> inputfiles) {
+			Set<CompilationPathOption> inputfiles) {
 		inputoption.toLinkerInputPassOption(taskcontext).accept(new LinkerInputPassOption.Visitor() {
 			@Override
 			public void visit(FileLinkerInputPass input) {
 				Collection<FileLocation> filelocations = input.toFileLocations(taskcontext);
-				ObjectUtils.addAll(inputfiles, filelocations);
+				if (!ObjectUtils.isNullOrEmpty(filelocations)) {
+					for (FileLocation fl : filelocations) {
+						inputfiles.add(new FileCompilationPathOptionImpl(fl));
+					}
+				}
 			}
 
 			@Override
@@ -343,11 +354,14 @@ public class ClangLinkTaskFactory extends FrontendTaskFactory<Object> {
 				if (filepaths == null) {
 					throw new IllegalArgumentException("null object file paths for compiler putput.");
 				}
-				Set<FileLocation> filelocations = new LinkedHashSet<>();
 				for (SakerPath objfilepath : filepaths) {
-					filelocations.add(ExecutionFileLocation.create(objfilepath));
+					inputfiles.add(new FileCompilationPathOptionImpl(ExecutionFileLocation.create(objfilepath)));
 				}
-				inputfiles.addAll(filelocations);
+			}
+
+			@Override
+			public void visit(SDKPathCollectionReference input) {
+				inputfiles.add(new SDKPathReferenceCompilationPathOption(input));
 			}
 		});
 	}

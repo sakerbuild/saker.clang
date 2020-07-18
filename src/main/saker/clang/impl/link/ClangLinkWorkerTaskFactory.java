@@ -57,7 +57,6 @@ import saker.sdk.support.api.exc.SDKManagementException;
 import saker.sdk.support.api.exc.SDKNotFoundException;
 import saker.sdk.support.api.exc.SDKPathNotFoundException;
 import saker.std.api.file.location.ExecutionFileLocation;
-import saker.std.api.file.location.FileLocation;
 import saker.std.api.file.location.FileLocationVisitor;
 import saker.std.api.file.location.LocalFileLocation;
 import saker.std.api.util.SakerStandardUtils;
@@ -69,14 +68,14 @@ public class ClangLinkWorkerTaskFactory
 	private static final NavigableSet<String> WORKER_TASK_CAPABILITIES = ImmutableUtils
 			.makeImmutableNavigableSet(new String[] { CAPABILITY_INNER_TASKS_COMPUTATIONAL });
 
-	private Set<FileLocation> inputs;
+	private Set<CompilationPathOption> inputs;
 	private Set<CompilationPathOption> libraryPath;
 	private NavigableMap<String, SDKDescription> sdkDescriptions;
 	private List<SimpleParameterOption> simpleParameters;
 
 	private String binaryName;
 
-	public void setInputs(Set<FileLocation> inputs) {
+	public void setInputs(Set<CompilationPathOption> inputs) {
 		this.inputs = inputs;
 	}
 
@@ -377,7 +376,7 @@ public class ClangLinkWorkerTaskFactory
 		private static final long serialVersionUID = 1L;
 
 		private TaskExecutionEnvironmentSelector environmentSelector;
-		private Set<FileLocation> inputs;
+		private Set<CompilationPathOption> inputs;
 		private Set<CompilationPathOption> libraryPath;
 		private NavigableMap<String, SDKDescription> sdkDescriptions;
 		private List<SimpleParameterOption> simpleParameters;
@@ -390,9 +389,10 @@ public class ClangLinkWorkerTaskFactory
 		public LinkerInnerTaskFactory() {
 		}
 
-		public LinkerInnerTaskFactory(TaskExecutionEnvironmentSelector environmentSelector, Set<FileLocation> inputs,
-				Set<CompilationPathOption> libraryPath, NavigableMap<String, SDKDescription> sdkDescriptions,
-				List<SimpleParameterOption> simpleParameters, SakerPath outdirpath, String binaryname) {
+		public LinkerInnerTaskFactory(TaskExecutionEnvironmentSelector environmentSelector,
+				Set<CompilationPathOption> inputs, Set<CompilationPathOption> libraryPath,
+				NavigableMap<String, SDKDescription> sdkDescriptions, List<SimpleParameterOption> simpleParameters,
+				SakerPath outdirpath, String binaryname) {
 			this.environmentSelector = environmentSelector;
 			this.inputs = inputs;
 			this.libraryPath = libraryPath;
@@ -404,32 +404,55 @@ public class ClangLinkWorkerTaskFactory
 
 		@Override
 		public LinkerInnerTaskFactoryResult run(TaskContext taskcontext) throws Exception {
+			NavigableMap<String, SDKReference> sdks = SDKSupportUtils
+					.resolveSDKReferences(taskcontext.getExecutionContext().getEnvironment(), sdkDescriptions);
+
 			NavigableMap<SakerPath, ContentDescriptor> inputdescriptors = new TreeMap<>();
 
 			Collection<Path> inputfilepaths = new LinkedHashSet<>();
 			Collection<Path> libpaths = new LinkedHashSet<>();
-			for (FileLocation inputfilelocation : inputs) {
-				inputfilelocation.accept(new FileLocationVisitor() {
+			for (CompilationPathOption inputfilelocation : inputs) {
+				inputfilelocation.accept(new CompilationPathOption.Visitor() {
 					@Override
-					public void visit(ExecutionFileLocation loc) {
-						SakerPath path = loc.getPath();
-						SakerFile inputfile = taskcontext.getTaskUtilities().resolveFileAtPath(path);
-						if (inputfile == null) {
-							throw ObjectUtils
-									.sneakyThrow(new FileNotFoundException("Linker input file not found: " + path));
-						}
-						inputdescriptors.put(path, inputfile.getContentDescriptor());
+					public void visit(FileCompilationPathOption path) {
+						path.getFileLocation().accept(new FileLocationVisitor() {
+							@Override
+							public void visit(ExecutionFileLocation loc) {
+								SakerPath path = loc.getPath();
+								SakerFile inputfile = taskcontext.getTaskUtilities().resolveFileAtPath(path);
+								if (inputfile == null) {
+									throw ObjectUtils.sneakyThrow(
+											new FileNotFoundException("Linker input file not found: " + path));
+								}
+								inputdescriptors.put(path, inputfile.getContentDescriptor());
+								try {
+									inputfilepaths.add(taskcontext.mirror(inputfile));
+								} catch (FileMirroringUnavailableException | NullPointerException | IOException e) {
+									throw ObjectUtils.sneakyThrow(e);
+								}
+							}
+						});
+					}
+
+					@Override
+					public void visit(SDKPathCollectionReference sdkpath) {
+						//XXX duplicated code 
 						try {
-							inputfilepaths.add(taskcontext.mirror(inputfile));
-						} catch (FileMirroringUnavailableException | NullPointerException | IOException e) {
-							throw ObjectUtils.sneakyThrow(e);
+							Collection<SakerPath> paths = sdkpath.getValue(sdks);
+							if (paths == null) {
+								throw new SDKPathNotFoundException("No SDK path found for: " + sdkpath);
+							}
+							for (SakerPath sdkdirpath : paths) {
+								inputfilepaths.add(LocalFileProvider.toRealPath(sdkdirpath));
+							}
+						} catch (SDKManagementException e) {
+							throw e;
+						} catch (Exception e) {
+							throw new SDKPathNotFoundException("Failed to retrieve path from SDKs: " + sdkpath);
 						}
 					}
 				});
 			}
-
-			NavigableMap<String, SDKReference> sdks = SDKSupportUtils
-					.resolveSDKReferences(taskcontext.getExecutionContext().getEnvironment(), sdkDescriptions);
 
 			SakerEnvironment environment = taskcontext.getExecutionContext().getEnvironment();
 			if (!ObjectUtils.isNullOrEmpty(this.libraryPath)) {
