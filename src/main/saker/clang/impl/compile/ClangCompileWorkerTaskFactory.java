@@ -1275,8 +1275,7 @@ public class ClangCompileWorkerTaskFactory
 											}
 										}
 									} catch (Exception e) {
-										SakerLog.error().verbose()
-												.println("Failed to parse clang path: " + e + " for " + file);
+										logIncludePathParseFailure(file, e);
 									}
 									diagbaos.write(("In file included from " + file + line.substring(pathendidx) + "\n")
 											.getBytes(StandardCharsets.UTF_8));
@@ -1298,8 +1297,7 @@ public class ClangCompileWorkerTaskFactory
 										}
 									}
 								} catch (Exception e) {
-									SakerLog.error().verbose()
-											.println("Failed to parse clang path: " + e + " for " + file);
+									logDiagnosticPathParseFailure(file, e);
 								}
 
 								//check not found header files
@@ -1388,6 +1386,42 @@ public class ClangCompileWorkerTaskFactory
 					//we can ignore this exception
 				}
 			}
+		}
+
+		private static void logIncludePathParseFailure(String file, Exception e) {
+			SakerLog.error().verbose().println("Failed to parse clang include path: " + e + " for " + file);
+		}
+
+		private static void logDiagnosticPathParseFailure(String file, Exception e) {
+			if ("<scratch space>".equals(file)) {
+				//in some cases the error is reported to be at the path <scratch space>
+				//I don't really know that this is, but we shouldn't report this as an error as
+				//clang probably erroneously reports this instead of the correct path.
+				//an example of such is:
+//				In file included from src/src.cpp:24:
+//				src/header.h:460:2: warning: offset of on non-standard-layout type '...' [-Winvalid-offsetof]
+//				        MACRO(..., ..., ...);
+//				        ^~~~~~~~~~~~~~~~~~~~~
+//				header_api.h:223:2: note: expanded from macro 'MACRO'
+//				        _MACRO( ( __VA_ARGS__, 4, 3 ), ( /**/, thisclass, func, __VA_ARGS__ ) )
+//				        ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+//				header_api_internal.h:194:45: note: expanded from macro '_MACRO'
+//				#define _MACRO( X, Y )                                          _MACRO X Y
+//				                                                                ^~~~~~~~~~
+//				header_api_internal.h:193:58: note: expanded from macro '_MACRO'
+//				#define __MACRO( _1, _2, ABC, ... )         __MACRO##ABC
+//				                                                                ^
+//				<scratch space>:65:1: note: expanded from here
+//				__MACRO_3
+//				^
+//				header_api_internal.h:201:86: note: expanded from macro '__MACRO_3'
+//				                        offsetof( thisclass, m_macro_ ## func ) ); \
+//				                        ^                    ~~~~~~~~~~~~~~~~
+//				.../stddef.h:104:24: note: expanded from macro 'offsetof'
+//				#define offsetof(t, d) __builtin_offsetof(t, d)
+				return;
+			}
+			SakerLog.error().verbose().println("Failed to parse clang diagnostic path: " + e + " for " + file);
 		}
 
 		private static List<Path> getDependencyFileDependencies(Iterator<String> lineit) {
